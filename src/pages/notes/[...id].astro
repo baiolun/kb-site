@@ -3,6 +3,8 @@ import { getCollection, render } from "astro:content";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { domainColor } from "../../lib/domains";
 import { noteHref } from "../../lib/noteHref";
+import { buildNoteTree } from "../../lib/noteTree";
+import NoteTree from "../../components/NoteTree.astro";
 import backlinks from "../../data/backlinks.json";
 import previewsRaw from "../../data/previews.json";
 import domainsJson from "../../data/graph.json";
@@ -16,16 +18,10 @@ const { entry } = Astro.props;
 const { Content } = await render(entry);
 const d = entry.data;
 
-// 左栏：全部领域 + 当前领域的其他笔记
+// 左栏目录树（维护者反馈：笔记之间有层级关系，平铺列表丢失层级感）——
+// 板块/子目录/笔记按 vault 真实目录构建，当前笔记分支自动展开
 const all = await getCollection("vault", (e) => e.data.collection === "notes");
-const byDomain = new Map<string, typeof all>();
-for (const n of all) {
-  const list = byDomain.get(n.data.domain) ?? [];
-  list.push(n);
-  byDomain.set(n.data.domain, list);
-}
-const domains = [...byDomain.keys()].sort((a, b) => byDomain.get(b)!.length - byDomain.get(a)!.length);
-const siblings = (byDomain.get(d.domain) ?? []).filter((n) => n.id !== entry.id).slice(0, 12);
+const tree = buildNoteTree(all.map((n) => ({ id: n.id, title: n.data.title })));
 
 // 右栏 TOC（h2 标题，管线注入 frontmatter）
 const toc = d.toc ?? [];
@@ -40,25 +36,10 @@ const domainC = domainColor(d.domain);
 <BaseLayout title={d.title}>
   <div class="note-shell">
     <aside>
-      <h3>领域</h3>
-      <ul>
-        {domains.map((dom) => (
-          <li><span class="domain-dot" style={`--domain-c:${domainColor(dom)}`}></span>
-            {dom === d.domain ? <strong>{dom}</strong> : dom}
-            <small>（{byDomain.get(dom)!.length}）</small>
-          </li>
-        ))}
-      </ul>
-      {siblings.length > 0 && (
-        <>
-          <h3>同领域</h3>
-          <ul>
-            {siblings.map((n) => (
-              <li><a href={noteHref(n.id)}>{n.data.title}</a></li>
-            ))}
-          </ul>
-        </>
-      )}
+      <h3>知识库</h3>
+      <nav class="note-tree" aria-label="知识库目录树">
+        <NoteTree nodes={tree} currentId={entry.id} />
+      </nav>
     </aside>
 
     <article>

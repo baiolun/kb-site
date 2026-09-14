@@ -74,6 +74,44 @@ hr { border: none; border-top: 1px solid var(--line); margin: 2em 0; }
 .toc-list a:hover, .toc-list a.active { color: var(--accent); border-left-color: var(--accent); }
 @media (max-width: 960px) { .note-shell { grid-template-columns: 1fr; } .note-shell aside { display: none; } }
 
+/* 左栏目录树（板块/子目录/笔记层级，当前分支默认展开） */
+.note-tree { font-size: 0.86rem; }
+.tree-dir summary {
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 0.35em;
+  color: var(--ink-2); padding: 0.18em 0.15em; border-radius: 4px;
+  font-family: var(--font-heading); font-size: 0.92em;
+  transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.tree-dir summary::-webkit-details-marker { display: none; }
+.tree-dir summary::before {
+  content: "▸"; flex-shrink: 0; font-size: 0.78em; color: var(--ink-2);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.tree-dir[open] > summary::before { transform: rotate(90deg); }
+.tree-dir summary:hover { color: var(--accent); background: var(--surface); }
+.tree-children { padding-left: 0.55em; margin-left: 0.5em; border-left: 1px solid var(--line); }
+.tree-note {
+  display: block; color: var(--ink-2); padding: 0.14em 0.3em; border-radius: 4px; line-height: 1.5;
+  transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.tree-note:hover { color: var(--accent); background: var(--surface); text-decoration: none; }
+.tree-note.current { color: var(--accent); font-weight: 600; background: var(--surface); }
+
+/* 悬浮细滚动条（替换系统默认粗条）：静止时隐身，悬浮/滚动时以主题色细条显现 */
+.note-shell aside, .topbar nav {
+  scrollbar-width: thin; scrollbar-color: transparent transparent;
+}
+.note-shell aside:hover, .topbar nav:hover {
+  scrollbar-color: var(--line) transparent;
+}
+.note-shell aside::-webkit-scrollbar, .topbar nav::-webkit-scrollbar { width: 6px; height: 6px; }
+.note-shell aside::-webkit-scrollbar-track, .topbar nav::-webkit-scrollbar-track { background: transparent; }
+.note-shell aside::-webkit-scrollbar-thumb, .topbar nav::-webkit-scrollbar-thumb {
+  border-radius: 999px; background: transparent;
+}
+.note-shell aside:hover::-webkit-scrollbar-thumb, .topbar nav:hover::-webkit-scrollbar-thumb { background: var(--line); }
+.note-shell aside:hover::-webkit-scrollbar-thumb:hover, .topbar nav:hover::-webkit-scrollbar-thumb:hover { background: var(--ink-2); }
+
 /* 正文排版（行宽 25-35 字 ≈ 700px） */
 .note-body { max-width: 700px; }
 .note-body > *:first-child { margin-top: 0; }

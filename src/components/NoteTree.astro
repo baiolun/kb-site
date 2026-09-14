@@ -1,0 +1,34 @@
+---
+// 递归目录树（自引用）：目录节点用原生 <details> 折叠（零 JS、键盘可达），
+// 当前笔记所在分支默认展开（path 为 currentId 前缀即命中）。
+import NoteTree from "./NoteTree.astro";
+import { noteHref } from "../lib/noteHref";
+import type { TreeNode } from "../lib/noteTree";
+
+interface Props {
+  nodes: TreeNode[];
+  currentId: string;
+}
+const { nodes, currentId } = Astro.props;
+---
+
+{
+  nodes.map((n) =>
+    n.kind === "dir" ? (
+      <details class="tree-dir" open={currentId.startsWith(n.path + "/")}>
+        <summary>{n.name}</summary>
+        <div class="tree-children">
+          <NoteTree nodes={n.children} currentId={currentId} />
+        </div>
+      </details>
+    ) : (
+      <a
+        class:list={["tree-note", { current: n.id === currentId }]}
+        href={noteHref(n.id)}
+        aria-current={n.id === currentId ? "page" : undefined}
+      >
+        {n.title}
+      </a>
+    )
+  )
+}
