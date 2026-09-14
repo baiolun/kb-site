@@ -1,0 +1,80 @@
+---
+import { ClientRouter } from "astro:transitions";
+import "../styles/global.css";
+interface Props { title: string; space?: "page" | "map"; current?: "home" | "graph" | "questions" | "learn" | "archive" | "notes"; }
+const { title, space = "page", current = "" } = Astro.props;
+const nav = [
+  { href: "/", key: "home", label: "首页" },
+  { href: "/graph/", key: "graph", label: "图谱" },
+  { href: "/questions/", key: "questions", label: "问题" },
+  { href: "/learn/", key: "learn", label: "路径" },
+  { href: "/archive/", key: "archive", label: "归档" },
+];
+---
+<html lang="zh-CN" data-theme="study" data-space={space}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} · 种子库</title>
+    <ClientRouter />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳至内容</a>
+    <header class="topbar">
+      <a class="brand" href="/">🌱 种子库</a>
+      <span class="kungfu" id="kungfu-badge" title="今日学习时长（本机活动估计，闲置 60 秒暂停）">⏱ —</span>
+      <nav aria-label="主导航">
+        {nav.map((n) => (
+          <a href={n.href} aria-current={current === n.key ? "page" : undefined}>{n.label}</a>
+        ))}
+      </nav>
+    </header>
+    <main id="main">
+      <slot />
+    </main>
+    <script>
+      // 学习时长（R7）：本机活动估计。闲置 60s 暂停；按本地日期累计；跨日自动切 key。
+      // View Transitions 下全局只注册一次；badge 每次渲染重取。
+      const w = window as any;
+      const localDayKey = () => {
+        const d = new Date();
+        return `kungfu-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      };
+      const fmt = (s: number) => (s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m` : `${Math.floor(s / 60)}m`);
+      if (!w.__kungfuStarted) {
+        w.__kungfuStarted = true;
+        let idle = false, timer: number | undefined;
+        let dayKey = localDayKey();
+        let seconds = parseInt(localStorage.getItem(dayKey) ?? "0", 10) || 0;
+        w.__kungfuToday = () => ({ dayKey, seconds, storageOk: true });
+        setInterval(() => {
+          const nowKey = localDayKey();
+          if (nowKey !== dayKey) { dayKey = nowKey; seconds = parseInt(localStorage.getItem(dayKey) ?? "0", 10) || 0; }
+          if (idle) return;
+          seconds += 1;
+          try { localStorage.setItem(dayKey, String(seconds)); } catch {}
+          w.__kungfuToday = () => ({ dayKey, seconds, storageOk: true });
+          const badge = document.getElementById("kungfu-badge");
+          if (badge) badge.textContent = `⏱ ${fmt(seconds)}`;
+        }, 1000);
+        const reset = () => { idle = false; clearTimeout(timer); timer = window.setTimeout(() => (idle = true), 60_000); };
+        ["mousemove", "keydown", "scroll", "click"].forEach((e) => window.addEventListener(e, reset, { passive: true }));
+        reset();
+      }
+      const paintBadge = () => {
+        const badge = document.getElementById("kungfu-badge");
+        if (!badge) return;
+        let secs = 0, ok = true;
+        try {
+          secs = parseInt(localStorage.getItem(localDayKey()) ?? "0", 10) || 0;
+        } catch { ok = false; }
+        badge.textContent = ok ? `⏱ ${fmt(secs)}` : "⏱ 本次会话";
+        badge.title = ok
+          ? "今日学习时长（本机活动估计，闲置 60 秒暂停，不含其他设备）"
+          : "浏览器本地存储不可用，时长仅本次会话有效";
+      };
+      paintBadge();
+      document.addEventListener("astro:page-load", paintBadge);
+    </script>
+  </body>
+</html>

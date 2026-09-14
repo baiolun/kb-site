@@ -1,0 +1,109 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { noteHref } from "../lib/noteHref";
+import progress from "../data/progress.json";
+
+const cs = progress.currentState ?? {};
+const tree = progress.knowledgeTree ?? {};
+const reviews = Object.values(progress.reviewSchedule ?? {})
+  .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""));
+const today = new Date().toISOString().slice(0, 10);
+const isDue = (r: any) => (r.dueDate ?? "9999") <= today;
+const dueCount = reviews.filter(isDue).length;
+const weaknesses = progress.weaknesses ?? [];
+const sessionHistory = progress.sessionHistory ?? [];
+
+// 一条龙（R4：骨架先行，领域内容按"学到哪补到哪"扩充；链接为调研确认的公开免费资源）
+const roadmaps = [
+  { domain: "GPU与图形学", items: ["GAMES101 现代计算机图形学入门（理论轨）", "LearnOpenGL（实操轨）", "Scratchapixel（参考手册）"] },
+  { domain: "Web 开发", items: ["MDN 学习区（Web 语义与协议）", "roadmap.sh 形态参考（内容自建）"] },
+  { domain: "计算机科学通识", items: ["teachyourselfcs（每层只选一个最佳）", "CS DIY（csdiy.wiki 中文自学地图）"] },
+];
+---
+
+<BaseLayout title="学习路径" current="learn">
+  <div style="max-width:860px;margin:1.5rem auto;padding:0 1.2rem">
+    <h1 style="font-size:1.3rem">🧭 学习路径</h1>
+
+    <!-- 当前状态 -->
+    <section style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:1rem 1.3rem;margin:1rem 0">
+      <div style="font-family:var(--font-heading);font-weight:700;margin-bottom:.4em">📍 现在在哪</div>
+      {cs.phase && <div style="font-size:.95rem">{cs.phase} → {cs.topic}{cs.subTopic ? ` → ${cs.subTopic}` : ""}</div>}
+      {cs.activeProject && <div style="font-size:.88rem;color:var(--ink-2);margin-top:.2em">进行中项目：{cs.activeProject}</div>}
+      {cs.lastSession && (
+        <div style="font-size:.85rem;color:var(--ink-2);margin-top:.6em;padding:.6em .9em;border-left:3px solid var(--accent);background:var(--bg);border-radius:0 6px 6px 0">
+          上次学习（{cs.lastSession.date} · {cs.lastSession.durationMinutes}min）：{cs.lastSession.summary}
+        </div>
+      )}
+    </section>
+
+    <!-- 复习（展示制，不打卡） -->
+    <section style="margin:1.8rem 0">
+      <h2 style="font-size:1.1rem">🔁 固化排程 <small style="font-size:.78rem;color:var(--ink-2)">到期 {dueCount}/{reviews.length} · 展示制，想起就问，不打卡</small></h2>
+      <div style="font-size:.9rem">
+        {reviews.map((r: any) => (
+          <div style="display:flex;gap:.7em;align-items:baseline;padding:.45em 0;border-bottom:1px solid var(--line)">
+            <span style={`font-family:var(--font-mono);font-size:.78rem;${isDue(r) ? "color:var(--accent)" : "color:var(--ink-2)"}`}>
+              {isDue(r) ? "● 到期" : r.dueDate}
+            </span>
+            <span style="flex:1">{r.question ?? r.topic}</span>
+            {r.notePath && <a href={noteHref(r.notePath.replace(/\.md$/, ""))} style="font-size:.8rem;white-space:nowrap">笔记 →</a>}
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- 知识树 -->
+    <section style="margin:1.8rem 0">
+      <h2 style="font-size:1.1rem">🌳 知识树</h2>
+      {Object.entries(tree).map(([root, node]: [string, any]) => (
+        <div style="margin:.8rem 0;padding-left:1rem;border-left:2px solid var(--line)">
+          <div style="font-family:var(--font-heading);font-weight:700">{root}</div>
+          {node.children && Object.entries(node.children).map(([c, cn]: [string, any]) => (
+            <div style="margin:.35rem 0 .35rem .8rem;font-size:.92rem">
+              · {cn.difficulty ?? ""} {c}
+              <small style="color:var(--ink-2)">（{(cn.notes ?? []).length} 篇{cn.confidence ? ` · ${cn.confidence}` : ""}）</small>
+            </div>
+          ))}
+        </div>
+      ))}
+    </section>
+
+    <!-- 薄弱点 -->
+    {weaknesses.length > 0 && (
+      <section style="margin:1.8rem 0">
+        <h2 style="font-size:1.1rem">⚠️ 薄弱点</h2>
+        {weaknesses.map((w: any) => (
+          <div style="font-size:.9rem;margin:.4em 0">
+            <strong>{w.topic}</strong>（错误 {w.errorCount} 次）— {w.note}
+          </div>
+        ))}
+      </section>
+    )}
+
+    <!-- 一条龙 -->
+    <section style="margin:1.8rem 0">
+      <h2 style="font-size:1.1rem">🗺️ 领域一条龙 <small style="font-size:.78rem;color:var(--ink-2)">理论+实操双轨 · 学到哪补到哪</small></h2>
+      {roadmaps.map((r) => (
+        <div style="margin:.8rem 0;padding:.7rem 1rem;background:var(--surface);border:1px solid var(--line);border-radius:8px">
+          <div style="font-family:var(--font-heading);font-weight:700;font-size:.95rem">{r.domain}</div>
+          <ol style="margin:.4em 0 0;padding-left:1.3em;font-size:.88rem">
+            {r.items.map((i) => <li style="margin:.25em 0">{i}</li>)}
+          </ol>
+        </div>
+      ))}
+    </section>
+
+    <!-- 学习史 -->
+    {sessionHistory.length > 0 && (
+      <section style="margin:1.8rem 0">
+        <h2 style="font-size:1.1rem">📜 学习史（最近 {Math.min(sessionHistory.length, 5)} 条）</h2>
+        {sessionHistory.slice(-5).reverse().map((s: any) => (
+          <div style="font-size:.85rem;color:var(--ink-2);margin:.35em 0">
+            <span style="font-family:var(--font-mono)">{s.date ?? ""}</span> — {(s.summary ?? "").slice(0, 80)}
+          </div>
+        ))}
+      </section>
+    )}
+  </div>
+</BaseLayout>

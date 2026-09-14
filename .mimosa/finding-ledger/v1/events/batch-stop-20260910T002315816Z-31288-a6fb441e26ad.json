@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "mimosa-finding-ledger-batch/v1",
+  "batchId": "stop-20260910T002315816Z-31288-a6fb441e26ad",
+  "runId": "20260910T002315816Z-31288-a6fb441e26ad",
+  "runStatus": "completed",
+  "coverage": {
+    "status": "complete",
+    "reasons": []
+  },
+  "source": {
+    "component": "zcode-hook",
+    "operationId": "Stop"
+  },
+  "revision": "7854f210441d2c83ab1d3d7c40905401e77753c1",
+  "diffHash": "84c73dbdc6c46cbcc888bfdc186eb34475c693dec37c60cc7fe5f635832f152e",
+  "rulesVersion": "unavailable",
+  "sessionHash": "e03b765c8591157bc1671bdd8ff599e4cfe23a8a44e19bb955dce9b47f000766",
+  "reportRef": ".mimosa/reports/task-review-sess_99e88554-6b76-4fbc-836e-67e327a3b3c4-20260910T002315816Z-31288-a6fb441e26ad.json",
+  "events": [],
+  "observedFindingIds": [],
+  "verifiedFiles": [],
+  "recordedAt": "2026-09-10T00:23:16.177Z"
+}

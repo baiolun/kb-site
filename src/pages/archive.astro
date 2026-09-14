@@ -1,0 +1,41 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { domainColor } from "../lib/domains";
+import { noteHref } from "../lib/noteHref";
+
+// 归档：考研 / 输出成品 / 对话沉淀 / 项目解析 等非核心知识区的聚合浏览
+const notes = await getCollection("vault", (e) => e.data.collection === "notes");
+const GROUPS: Record<string, { label: string; desc: string }> = {
+  "考研": { label: "🎓 考研", desc: "备考资料与可视化项目" },
+  "02-科普脚本": { label: "🎬 科普脚本", desc: "视频输出脚本" },
+  "03-公众号输出": { label: "📢 公众号输出", desc: "成文输出" },
+  "06-对话沉淀": { label: "💬 对话沉淀", desc: "重要讨论与决策" },
+  "项目解析": { label: "🔍 项目解析", desc: "开源/外部项目解构" },
+  "00-Inbox": { label: "📥 收集箱", desc: "待整理材料" },
+};
+const sections = Object.entries(GROUPS).map(([key, g]) => ({
+  ...g,
+  key,
+  notes: notes.filter((n) => n.id === key || n.id.startsWith(key + "/")).sort((a, b) => (b.data.created ?? "").localeCompare(a.data.created ?? "")),
+})).filter((s) => s.notes.length > 0);
+---
+
+<BaseLayout title="归档" current="archive">
+  <div style="max-width:860px;margin:1.5rem auto;padding:0 1.2rem">
+    <h1 style="font-size:1.3rem">🗂️ 归档</h1>
+    {sections.map((s) => (
+      <section style="margin:1.6rem 0">
+        <h2 style="font-size:1.05rem">{s.label} <small style="font-size:.78rem;color:var(--ink-2)">{s.notes.length} 篇 · {s.desc}</small></h2>
+        <div class="card-grid">
+          {s.notes.map((n) => (
+            <a class="note-card" style={`--domain-c:${domainColor(n.data.domain)}`} href={noteHref(n.id)}>
+              <div class="c-title">{n.data.title}</div>
+              <div class="c-meta">{n.data.created ?? ""}{n.data.tags.length ? " · " + n.data.tags.slice(0, 3).map((t) => "#" + t).join(" ") : ""}</div>
+            </a>
+          ))}
+        </div>
+      </section>
+    ))}
+  </div>
+</BaseLayout>

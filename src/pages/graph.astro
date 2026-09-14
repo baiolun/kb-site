@@ -1,0 +1,15 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import GraphView from "../components/GraphView";
+import stats from "../data/stats.json";
+---
+
+<BaseLayout title="知识星图" space="map" current="graph">
+  <div style="display:flex;align-items:baseline;gap:1rem;padding:0.8rem 1.2rem 0;">
+    <h1 style="font-size:1.1rem;margin:0">✨ 知识星图</h1>
+    <span style="font-family:var(--font-mono);font-size:0.8rem;color:var(--ink-2)">
+      {stats.notes} 节点 · {stats.edges} 边 · 悬停聚焦邻接 · 点击节点下钻进笔记
+    </span>
+  </div>
+  <GraphView client:only="react" />
+</BaseLayout>

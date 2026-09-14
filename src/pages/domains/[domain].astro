@@ -1,0 +1,54 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { domainColor } from "../../lib/domains";
+import { noteHref } from "../../lib/noteHref";
+
+export async function getStaticPaths() {
+  const notes = await getCollection("vault", (e) => e.data.collection === "notes");
+  const byDomain = new Map<string, typeof notes>();
+  for (const n of notes) {
+    const list = byDomain.get(n.data.domain) ?? [];
+    list.push(n);
+    byDomain.set(n.data.domain, list);
+  }
+  return [...byDomain.entries()].map(([domain, list]) => ({
+    params: { domain },
+    props: { list: list.sort((a, b) => (b.data.created ?? "").localeCompare(a.data.created ?? "")) },
+  }));
+}
+
+const { list } = Astro.props;
+const domain = Astro.params.domain;
+const color = domainColor(domain);
+// MoC：总览页优先置顶（Obsidian 惯例：领域总览是该领域的门面）
+const overview = list.find((n) => n.data.title.includes("总览"));
+const rest = list.filter((n) => n !== overview);
+---
+
+<BaseLayout title={domain}>
+  <div style="max-width:900px;margin:1.5rem auto;padding:0 1.2rem">
+    <div style={`border-top:4px solid ${color};padding-top:.8rem`}>
+      <h1 style="font-size:1.35rem;margin:0">
+        <span class="domain-dot" style={`--domain-c:${color}`}></span>{domain}
+      </h1>
+      <div class="meta-row"><span>{list.length} 篇</span><span>领域色 {color}</span></div>
+    </div>
+
+    {overview && (
+      <a class="note-card" style={`--domain-c:${color};display:block;margin:1rem 0;padding:1.1rem 1.3rem;border-width:2px`} href={noteHref(overview.id)}>
+        <div class="c-title" style="font-size:1.05rem">🌳 {overview.data.title}（领域总览）</div>
+        <div class="c-meta">{overview.data.created ?? ""} · 从这里进入这片领域</div>
+      </a>
+    )}
+
+    <div class="card-grid">
+      {rest.map((n) => (
+        <a class="note-card" style={`--domain-c:${color}`} href={noteHref(n.id)}>
+          <div class="c-title">🌱 {n.data.title}</div>
+          <div class="c-meta">{n.data.created ?? ""}</div>
+        </a>
+      ))}
+    </div>
+  </div>
+</BaseLayout>

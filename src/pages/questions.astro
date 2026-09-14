@@ -1,0 +1,39 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { noteHref } from "../lib/noteHref";
+import questions from "../data/questions.json";
+
+const sorted = [...questions].sort((a, b) => b.id.localeCompare(a.id));
+const openCount = questions.filter((q) => q.status === "open").length;
+
+// 体检 USAB-003 修复：q.note 是 [[标题]] 提取的标题，需映射为笔记 id 才能拼出可达链接
+const notes = await getCollection("vault", (e) => e.data.collection === "notes");
+const titleToId = new Map(notes.map((n) => [n.data.title, n.id]));
+const qRows = sorted.map((q) => {
+  const nid = q.note ? titleToId.get(q.note.replace(/^\[\[|\]\]$/g, "")) : undefined;
+  return { ...q, noteHref: nid ? noteHref(nid) : undefined };
+});
+---
+
+<BaseLayout title="问题日志" current="questions">
+  <div class="q-timeline">
+    <h1 style="font-size:1.25rem">❓ 好奇心地图 <small style="font-size:0.8rem;color:var(--ink-2)">{questions.length} 问 · {openCount} open</small></h1>
+    <p style="color:var(--ink-2);font-size:0.88rem">每个问题都是一次好奇心的记录。open 的问题随时可以回来追问。</p>
+    {qRows.map((q) => (
+      <div class={`q-item ${q.status === "open" ? "open" : ""}`} id={q.id}>
+        <div class="q-head">
+          <span class="q-id">{q.id}</span>
+          <span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--ink-2)">{q.date}</span>
+          <span class={`q-status ${q.status}`}>{q.status === "open" ? "🌱 open" : "🌳 answered"}</span>
+        </div>
+        <div style="margin:0.25em 0 0.3em">{q.question}</div>
+        <div style="font-size:0.8rem;color:var(--ink-2)">
+          {q.note && q.noteHref && <>知识点：<a href={q.noteHref}>{q.note}</a> · </>}
+          {q.note && !q.noteHref && <>知识点：{q.note}（暂无对应笔记） · </>}
+          {q.adjacent.length > 0 && <span>相邻：{q.adjacent.join("、")}</span>}
+        </div>
+      </div>
+    ))}
+  </div>
+</BaseLayout>

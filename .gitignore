@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.astro/
+output/
+playwright-report/
+test-results/
+
+# 生成物（pnpm build 时由 pipeline/parse-vault.mjs 从 vault 重建，禁手改）
+src/content/vault/
+src/data/
+pipeline/warnings.json
+
+# 凭据（.env.example 占位文件保留）
+.env
+.env.*
+!.env.example
+
+# 体检产物（本地存档）
+.audit/

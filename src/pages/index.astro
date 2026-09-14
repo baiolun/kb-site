@@ -1,0 +1,200 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { domainColor } from "../lib/domains";
+import { noteHref } from "../lib/noteHref";
+import questions from "../data/questions.json";
+import stats from "../data/stats.json";
+import progress from "../data/progress.json";
+
+const notes = await getCollection("vault", (e) => e.data.collection === "notes");
+
+// ── F04：知识主题（01-知识笔记 的领域）与内容集合（存储目录）分层 ──
+const TOPIC_DOMAINS = [
+  "GPU与图形技术", "金融基础", "Web开发", "装机与硬件", "芯片半导体",
+  "网络原理", "接口协议", "开发工具链", "光学工程", "软件与驱动",
+];
+const byDomain = new Map<string, typeof notes>();
+for (const n of notes) {
+  const list = byDomain.get(n.data.domain) ?? [];
+  list.push(n);
+  byDomain.set(n.data.domain, list);
+}
+const topics = TOPIC_DOMAINS.map((d) => ({ domain: d, count: (byDomain.get(d) ?? []).length })).filter((t) => t.count > 0);
+const otherDomains = [...byDomain.keys()].filter((d) => !TOPIC_DOMAINS.includes(d));
+// 内容集合入口：归档类进 /archive/，学习路径进 /learn/，其余目录类进各自领域页
+const collections = otherDomains.map((d) => ({
+  domain: d,
+  count: (byDomain.get(d) ?? []).length,
+  href: d === "07-学习路径" ? "/learn/" : ["考研", "02-科普脚本", "03-公众号输出", "06-对话沉淀", "项目解析", "00-Inbox", "99-Dashboard"].includes(d) ? "/archive/" : `/domains/${encodeURIComponent(d)}/`,
+}));
+
+// ── F01：接着上次（progress 的 currentState/lastSession，标注记录日期，不冒充实时）──
+const cs = progress.currentState ?? {};
+const last = cs.lastSession;
+
+// ── F02：诚实命名——按创建时间，叫"最近新增" ──
+const recent = notes
+  .filter((n) => n.data.created)
+  .sort((a, b) => (b.data.created ?? "").localeCompare(a.data.created ?? ""))
+  .slice(0, 5);
+
+// ── F05：待追问带来源与锚点；按问题日期倒序（时间依据真实，不假装个性化推荐）──
+const titleToId = new Map(notes.map((n) => [n.data.title, n.id]));
+const openQ = [...questions.filter((q) => q.status === "open")]
+  .sort((a, b) => b.id.localeCompare(a.id))
+  .slice(0, 3)
+  .map((q) => {
+    const nid = q.note ? titleToId.get(q.note.replace(/^\[\[|\]\]$/g, "")) : undefined;
+    return { ...q, noteHref: nid ? noteHref(nid) : undefined };
+  });
+const openCount = questions.filter((q) => q.status === "open").length;
+const updated = (stats.generatedAt ?? "").slice(0, 10);
+---
+
+<BaseLayout title="首页" current="home">
+  <div class="home">
+    <h1 class="home-title">接着探索</h1>
+    <p class="home-sub">
+      {stats.notes} 篇笔记 · {stats.edges} 条连接 · {openCount} 个待追问
+      <span class="dot-sep">·</span> 数据更新于 {updated}
+    </p>
+
+    <div class="home-grid">
+      <!-- ① 接着上次 -->
+      <section class="card-primary" aria-labelledby="resume-h">
+        <h2 id="resume-h">📍 接着上次</h2>
+        {(cs.topic || cs.phase) ? (
+          <>
+            <div class="resume-topic">{cs.phase}{cs.topic ? ` → ${cs.topic}` : ""}{cs.subTopic ? ` → ${cs.subTopic}` : ""}</div>
+            {cs.activeProject && <div class="resume-meta">进行中项目：{cs.activeProject}</div>}
+            {last && (
+              <div class="resume-last">
+                <span class="mono">{last.date}</span>（{last.durationMinutes} 分钟）：{last.summary}
+              </div>
+            )}
+            <div class="resume-actions">
+              <a class="btn-accent" href="/learn/">打开学习路径 →</a>
+              {last && <span class="hint">记录于 {last.date}，非实时阅读位置</span>}
+            </div>
+          </>
+        ) : (
+          <>
+            <div class="resume-topic">还没有学习记录</div>
+            <div class="resume-actions">
+              <a class="btn-accent" href="/learn/">从学习路径开始 →</a>
+              <span class="hint">或在下方选一个主题</span>
+            </div>
+          </>
+        )}
+      </section>
+
+      <!-- ② 还想弄懂 -->
+      <section class="card-side" aria-labelledby="ask-h">
+        <h2 id="ask-h">❓ 还想弄懂 <a class="more" href="/questions/">全部 {openCount} 条 →</a></h2>
+        {openQ.length > 0 ? (
+          <ul class="q-lines">
+            {openQ.map((q) => (
+              <li>
+                <a class="q-text" href={`/questions/#${q.id}`}>{q.question}</a>
+                <div class="q-src">
+                  <span class="mono">{q.id}</span>
+                  {q.noteHref ? <>来自 <a href={q.noteHref}>{q.note}</a></> : q.note ? <span>来自 {q.note}</span> : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p class="empty">暂时没有待追问的问题。有好奇的就去问，问题日志会替你记着。</p>
+        )}
+      </section>
+    </div>
+
+    <!-- ③ 功夫值（F06：直接进入/站内返回/刷新均渲染；F09：零记录温和提示） -->
+    <section class="home-sec" id="kungfu-panel" aria-labelledby="kungfu-h">
+      <h2 id="kungfu-h">⏱ 最近 7 天的功夫 <small>本机活动估计 · 闲置自动暂停 · 不含其他设备</small></h2>
+      <div id="kungfu-bars" class="kungfu-bars"></div>
+      <div id="kungfu-empty" class="empty" style="display:none">这个浏览器还没有学习记录。随便打开一篇笔记，顶栏计时会自动开始累计。</div>
+    </section>
+
+    <!-- ④ 按主题找（F03 可点；F10 紧凑条目形态） -->
+    <section class="home-sec" aria-labelledby="topics-h">
+      <h2 id="topics-h">🗺️ 按主题找</h2>
+      <ul class="domain-lines">
+        {topics.map((t) => (
+          <li>
+            <a href={`/domains/${encodeURIComponent(t.domain)}/`}>
+              <span class="domain-dot" style={`--domain-c:${domainColor(t.domain)}`}></span>
+              <span class="d-name">{t.domain}</span>
+              <span class="d-count">{t.count} 篇</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+      {collections.length > 0 && (
+        <p class="collections-line">
+          <span class="hint">内容集合：</span>
+          {collections.map((c, i) => (
+            <>
+              {i > 0 && <span class="dot-sep">·</span>}
+              <a href={c.href}>{c.domain}</a> <small>({c.count})</small>
+            </>
+          ))}
+        </p>
+      )}
+    </section>
+
+    <!-- ⑤ 最近新增（F02 诚实命名；时间列表形态） -->
+    <section class="home-sec" aria-labelledby="recent-h">
+      <h2 id="recent-h">🆕 最近新增 <small>按笔记创建时间</small></h2>
+      <ul class="recent-lines">
+        {recent.map((n) => (
+          <li>
+            <span class="mono">{n.data.created}</span>
+            <a href={noteHref(n.id)}>{n.data.title}</a>
+            <span class="d-name" style={`color:${domainColor(n.data.domain)}`}>{n.data.domain}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  </div>
+</BaseLayout>
+
+<script>
+  // 功夫值面板（F06）：astro:page-load 在首次加载与每次站内返回后触发，面板始终重新渲染
+  function renderKungfu() {
+    const panel = document.getElementById("kungfu-panel");
+    const bars = document.getElementById("kungfu-bars");
+    const empty = document.getElementById("kungfu-empty");
+    if (!panel || !bars || !empty) return;
+    const days: { label: string; secs: number }[] = [];
+    let storageOk = true;
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400_000);
+      const key = `kungfu-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      let secs = 0;
+      try { secs = parseInt(localStorage.getItem(key) ?? "0", 10) || 0; } catch { storageOk = false; }
+      days.push({ label: `${d.getMonth() + 1}/${d.getDate()}`, secs });
+    }
+    const max = Math.max(...days.map((d) => d.secs), 60);
+    const has = days.some((d) => d.secs > 0);
+    panel.style.display = "";
+    bars.innerHTML = days
+      .map((d) => {
+        const h = Math.max((d.secs / max) * 64, 3);
+        const txt = d.secs >= 3600 ? `${(d.secs / 3600).toFixed(1)}h` : `${Math.round(d.secs / 60)}m`;
+        return `<div style="flex:1;text-align:center">
+          <div>${d.secs > 0 ? txt : "·"}</div>
+          <div style="height:${h}px;background:var(--accent);border-radius:3px 3px 0 0;margin:2px 0;opacity:${d.secs > 0 ? 0.85 : 0.25}"></div>
+          <div>${d.label}</div>
+        </div>`;
+      })
+      .join("");
+    empty.style.display = has ? "none" : "";
+    empty.textContent = storageOk
+      ? "这个浏览器还没有学习记录。随便打开一篇笔记，顶栏计时会自动开始累计。"
+      : "浏览器本地存储不可用，时长仅本次会话有效（不影响阅读）。";
+  }
+  renderKungfu();
+  document.addEventListener("astro:page-load", renderKungfu);
+</script>

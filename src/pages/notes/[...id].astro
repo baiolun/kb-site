@@ -1,0 +1,256 @@
+---
+import { getCollection, render } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { domainColor } from "../../lib/domains";
+import { noteHref } from "../../lib/noteHref";
+import backlinks from "../../data/backlinks.json";
+import previewsRaw from "../../data/previews.json";
+import domainsJson from "../../data/graph.json";
+
+export async function getStaticPaths() {
+  const notes = await getCollection("vault", (e) => e.data.collection === "notes");
+  return notes.map((entry) => ({ params: { id: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const d = entry.data;
+
+// 左栏：全部领域 + 当前领域的其他笔记
+const all = await getCollection("vault", (e) => e.data.collection === "notes");
+const byDomain = new Map<string, typeof all>();
+for (const n of all) {
+  const list = byDomain.get(n.data.domain) ?? [];
+  list.push(n);
+  byDomain.set(n.data.domain, list);
+}
+const domains = [...byDomain.keys()].sort((a, b) => byDomain.get(b)!.length - byDomain.get(a)!.length);
+const siblings = (byDomain.get(d.domain) ?? []).filter((n) => n.id !== entry.id).slice(0, 12);
+
+// 右栏 TOC（h2 标题，管线注入 frontmatter）
+const toc = d.toc ?? [];
+
+// 反链
+const linksIn = (backlinks as Record<string, string[]>)[entry.id] ?? [];
+const titleOf = (id: string) => (previewsRaw as Record<string, any>)[id]?.title ?? id.split("/").at(-1);
+
+const domainC = domainColor(d.domain);
+---
+
+<BaseLayout title={d.title}>
+  <div class="note-shell">
+    <aside>
+      <h3>领域</h3>
+      <ul>
+        {domains.map((dom) => (
+          <li><span class="domain-dot" style={`--domain-c:${domainColor(dom)}`}></span>
+            {dom === d.domain ? <strong>{dom}</strong> : dom}
+            <small>（{byDomain.get(dom)!.length}）</small>
+          </li>
+        ))}
+      </ul>
+      {siblings.length > 0 && (
+        <>
+          <h3>同领域</h3>
+          <ul>
+            {siblings.map((n) => (
+              <li><a href={noteHref(n.id)}>{n.data.title}</a></li>
+            ))}
+          </ul>
+        </>
+      )}
+    </aside>
+
+    <article>
+      <h1>{d.title}</h1>
+      <div class="meta-row">
+        <span><span class="domain-dot" style={`--domain-c:${domainC}`}></span>{d.domain}</span>
+        {d.created && <span>{d.created}</span>}
+        {d.status && <span class="badge">{d.status}</span>}
+        {d.tags.map((t) => <span class="tag">#{t}</span>)}
+        {d.aliases.length > 0 && <span>别名：{d.aliases.join("、")}</span>}
+      </div>
+      <div class="note-body" id="note-body" data-note={entry.id} data-note-title={d.title}>
+        <Content />
+      </div>
+
+      <section id="annotations-sec" style="margin-top:3rem">
+        <h2 style="font-size:1.05rem">📝 我的批注（本页 0 条）</h2>
+        <div id="annotation-list" style="font-size:0.88rem;color:var(--ink-2)">选正文中任意文字即可写下批注。</div>
+        <button id="export-annotations" class="tag" style="margin-top:0.6rem;cursor:pointer">复制为批注 md（存入 vault）</button>
+      </section>
+    </article>
+
+    <aside>
+      {toc.length > 0 && (
+        <>
+          <h3>本页结构</h3>
+          <ul class="toc-list">
+            {toc.map((h) => <li><a href={`#${h.id}`}>{h.t}</a></li>)}
+          </ul>
+        </>
+      )}
+      <h3>反链（{linksIn.length}）</h3>
+      <ul>
+        {linksIn.map((id) => (
+          <li><a href={noteHref(id)}>{titleOf(id)}</a></li>
+        ))}
+      </ul>
+      <h3>图谱</h3>
+      <ul><li><a href="/graph/">进入星图 →</a></li></ul>
+    </aside>
+  </div>
+
+  <div class="wiki-popover" id="wiki-popover" role="tooltip"></div>
+
+  <script type="application/json" id="previews-data" set:html={JSON.stringify(previewsRaw).replace(/</g, "\\u003c")} />
+
+  <script>
+    // ── 双链 popover：hover /notes/ 链接 → previews 摘要浮窗（延迟 180ms 防误扫）──
+    // esc：previews 摘要/批注/GLM 讲解都是动态数据，一律转义后再进 innerHTML（体检 AI-001）
+    const esc = (s: unknown) =>
+      String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const previews = JSON.parse(document.getElementById("previews-data")!.textContent!);
+    const pop = document.getElementById("wiki-popover")!;
+    let hideTimer: number | undefined, showTimer: number | undefined;
+    const show = (a: HTMLAnchorElement) => {
+      const href = decodeURIComponent(a.getAttribute("href") ?? "");
+      const id = href.replace(/^\/notes\//, "").replace(/\/$/, "");
+      const p = (previews as Record<string, any>)[id];
+      if (!p) return;
+      pop.innerHTML = `<div class="p-title">${esc(p.title)}</div>${p.excerpt ? `<div>${esc(p.excerpt)}…</div>` : ""}
+        <div class="p-meta">${esc(p.domain)}${p.created ? " · " + esc(p.created) : ""} · 点击进入</div>`;
+      const r = a.getBoundingClientRect();
+      pop.style.left = `${Math.min(r.left + window.scrollX, window.scrollX + window.innerWidth - 340)}px`;
+      pop.style.top = `${r.bottom + window.scrollY + 8}px`;
+      pop.classList.add("show");
+    };
+    document.querySelectorAll<HTMLAnchorElement>('.note-body a[href^="/notes/"]').forEach((a) => {
+      a.addEventListener("mouseenter", () => { clearTimeout(hideTimer); showTimer = window.setTimeout(() => show(a), 180); });
+      a.addEventListener("mouseleave", () => { clearTimeout(showTimer); hideTimer = window.setTimeout(() => pop.classList.remove("show"), 120); });
+    });
+    pop.addEventListener("mouseenter", () => clearTimeout(hideTimer));
+    pop.addEventListener("mouseleave", () => (hideTimer = window.setTimeout(() => pop.classList.remove("show"), 120)));
+
+    // ── 批注（R8：优先 POST 落盘 vault（annotate-server :4322），失败降级 localStorage）──
+    const body = document.getElementById("note-body")!;
+    const noteId = body.dataset.note!;
+    const noteTitle = body.dataset.noteTitle!;
+    const KEY = "kb-annotations";
+    const loadAll = (): any[] => JSON.parse(localStorage.getItem(KEY) ?? "[]");
+    const saveAll = (a: any[]) => localStorage.setItem(KEY, JSON.stringify(a));
+    let floater: HTMLDivElement | null = null;
+    let serverNotes: any[] = [];
+
+    // 页面加载：拉取 vault 中已落盘的批注（annotate-server GET）
+    fetch(`http://127.0.0.1:4322/annotations?note=${encodeURIComponent(noteId)}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => { serverNotes = list ?? []; renderList(); })
+      .catch(() => { /* 服务未起：仅显示本地批注 */ });
+
+    document.addEventListener("mouseup", (e) => {
+      // 体检 USAB-002 修复：点击浮窗内部（输入框/按钮）不得销毁浮窗
+      if (floater && e.target instanceof Node && floater.contains(e.target)) return;
+      const sel = window.getSelection();
+      floater?.remove(); floater = null;
+      if (!sel || sel.isCollapsed || !body.contains(sel.anchorNode)) return;
+      const text = sel.toString().trim();
+      if (text.length < 2) return;
+      const range = sel.getRangeAt(0).getBoundingClientRect();
+      floater = document.createElement("div");
+      floater.style.cssText = `position:fixed;left:${Math.min(range.left, innerWidth - 320)}px;top:${range.bottom + 8}px;z-index:99;width:300px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:.7rem;box-shadow:0 8px 24px rgba(0,0,0,.15);font-size:.85rem`;
+      floater.innerHTML = `<div style="color:var(--ink-2);margin-bottom:.4em">批注「${esc(text.slice(0, 24))}…」</div>
+        <textarea id="anno-q" rows="2" aria-label="我的疑问" style="width:100%;font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:.4em" placeholder="我的疑问…"></textarea>
+        <div style="display:flex;gap:.5em;margin-top:.5em">
+          <button id="anno-save" style="font:inherit;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:.3em .9em;cursor:pointer">仅保存</button>
+          <button id="anno-explain" style="font:inherit;background:var(--accent);color:#fff;border:0;border-radius:6px;padding:.3em .9em;cursor:pointer">✨ 保存并讲解</button>
+        </div>`;
+      document.body.appendChild(floater);
+      // 体检 USAB-002 修复：按钮 handler 用创建时捕获的局部引用 fl，
+      // 不再读外层 floater（document mouseup 会把它置 null，原实现必然 TypeError）
+      const fl = floater;
+      fl.querySelector("#anno-save")!.addEventListener("click", () => {
+        const q = (fl.querySelector("#anno-q") as HTMLTextAreaElement).value.trim();
+        if (!q) return;
+        const rec = buildRec(sel, q);
+        // 优先落盘 vault；服务未起则降级 localStorage（标 unsynced，导出兜底）
+        fetch("http://127.0.0.1:4322/annotate", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(rec),
+        })
+          .then((r) => (r.ok ? r.json() : Promise.reject()))
+          .then(() => { serverNotes = [...serverNotes, rec]; renderList(); })
+          .catch(() => {
+            const all = loadAll();
+            all.push({ ...rec, unsynced: true });
+            saveAll(all);
+            renderList();
+          });
+        floater?.remove();
+      });
+
+      fl.querySelector("#anno-explain")!.addEventListener("click", () => {
+        const q = (fl.querySelector("#anno-q") as HTMLTextAreaElement).value.trim();
+        if (!q) return;
+        const rec = buildRec(sel, q);
+        const btn = fl.querySelector("#anno-explain") as HTMLButtonElement;
+        btn.textContent = "⏳ 讲解中…";
+        btn.disabled = true;
+        (async () => {
+          let explanation = "", err = "";
+          try {
+            const saved = await fetch("http://127.0.0.1:4322/annotate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(rec) });
+            if (!saved.ok) throw new Error("批注服务未启动");
+            const res = await fetch("http://127.0.0.1:4322/explain", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(rec) });
+            const data = await res.json();
+            if (!res.ok) { err = data.error ?? "讲解失败"; }
+            else explanation = data.explanation;
+          } catch { err = "批注服务未启动（pnpm annotate），批注已尝试降级本地"; }
+          if (err) {
+            const all = loadAll();
+            all.push({ ...rec, unsynced: true });
+            saveAll(all);
+            renderList();
+            alert(err);
+          } else {
+            serverNotes = [...serverNotes, { ...rec, status: "explained", explanation }];
+            renderList();
+          }
+          floater?.remove();
+        })();
+      });
+
+      function buildRec(sel: Selection, q: string) {
+        let anchor = "";
+        let node = sel.getRangeAt(0).startContainer as HTMLElement | null;
+        while (node && node !== body) {
+          if (node.nodeName === "H2") { anchor = (node as HTMLElement).textContent ?? ""; break; }
+          node = node.parentElement;
+        }
+        return { note: noteId, noteTitle, anchor, excerpt: text.slice(0, 120), question: q, created: new Date().toISOString().slice(0, 16).replace("T", " "), status: "open" };
+      }
+    });
+
+    function renderList() {
+      const local = loadAll().filter((a) => a.note === noteId);
+      const mine = [...serverNotes, ...local];
+      const sec = document.querySelector("#annotations-sec h2")!;
+      sec.textContent = `📝 我的批注（本页 ${mine.length} 条）`;
+      const list = document.getElementById("annotation-list")!;
+      list.innerHTML = mine.length
+        ? mine.map((a) => `<div style="margin:.5em 0;padding-left:.8em;border-left:2px solid var(--line)">
+            <div>「${esc(a.excerpt)}…」</div><div><strong>问：</strong>${esc(a.question)}</div>
+            ${a.explanation ? `<div style="margin-top:.3em;padding:.5em .8em;background:var(--surface);border-radius:6px"><strong style="color:var(--accent)">✨ 讲解</strong><br>${esc(a.explanation).replaceAll("\n", "<br>")}</div>` : ""}
+            <small>${esc(a.anchor ? a.anchor + " · " : "")}${esc(a.created)} · ${esc(a.status)}${a.unsynced ? " · ⚠️ 未同步（批注服务未启动，可点下方导出）" : " · ✅ 已存入 vault"}</small></div>`).join("")
+        : "选正文中任意文字即可写下批注。";
+    }
+    renderList();
+
+    document.getElementById("export-annotations")!.addEventListener("click", () => {
+      const mine = loadAll();
+      const md = mine.map((a) => `---\nnote: "[[${a.noteTitle}]]"\nanchor: "${a.anchor}"\ncreated: ${a.created}\nstatus: ${a.status}\n---\n\n> ${a.excerpt}…\n\n**我的疑问**：${a.question}\n`).join("\n");
+      navigator.clipboard.writeText(md).then(() => {
+        (document.getElementById("export-annotations") as HTMLButtonElement).textContent = "✅ 已复制到剪贴板，粘贴存入 vault/网站/批注/";
+      });
+    });
+  </script>
+</BaseLayout>

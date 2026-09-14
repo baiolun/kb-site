@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-09-10T04:38:35.213Z",
+  "sessionId": "sess_99e88554-6b76-4fbc-836e-67e327a3b3c4",
+  "event": "PostToolUse",
+  "toolName": "Edit",
+  "file": "pipeline/annotate-server.mjs",
+  "outcome": "clear",
+  "coverage": "complete",
+  "findingCount": 0,
+  "durationMs": 4,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}
