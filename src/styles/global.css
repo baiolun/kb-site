@@ -5,23 +5,49 @@
 @import "@fontsource/noto-serif-sc/600.css";
 @import "@fontsource/geist-mono/400.css";
 
-:root[data-theme="study"] {
-  --bg: #faf6ef; --surface: #ffffff; --ink: #1c1c1c; --ink-2: #5a564e;
-  --accent: #a63d2f; --link: #2c5e8a; --line: #e5dfd3;
+/* ── 主题 tokens ─────────────────────────────────────────────
+   night（默认，维护者反馈亮色刺眼）：与知识星图统一的冷灰蓝黑，
+   种子绿 accent 呼应品牌；study（亮）保留原书房米白，可随时切回。
+   html 的 data-theme 由 head 内联脚本在渲染前写入（防 FOUC）。 */
+:root {
+  --bg: #16181d; --surface: #1e2028; --ink: #e2e2e2; --ink-2: #9a968e;
+  --accent: #4aba6a; --link: #58a6ff; --line: #2d3138;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   --font-heading: "Noto Sans SC", sans-serif;
   --font-body: "Noto Serif SC", serif;
   --font-mono: "Geist Mono", ui-monospace, monospace;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --dur-fast: 150ms; --dur-med: 200ms;
-  /* 领域色（瑞士网格借色，贯穿领域所有页面） */
+  /* 领域色（瑞士网格借色）night 下提亮 35% 保证暗底可辨 */
+  --domain-GPU与图形技术: color-mix(in oklab, #a63d2f, white 35%);
+  --domain-金融基础: color-mix(in oklab, #2c5e8a, white 38%);
+  --domain-Web开发: color-mix(in oklab, #6b8f5e, white 32%);
+  --domain-装机与硬件: color-mix(in oklab, #d97b4f, white 20%);
+  --domain-芯片半导体: color-mix(in oklab, #8e4a3e, white 38%);
+  --domain-网络原理: color-mix(in oklab, #3e8e8e, white 32%);
+  --domain-接口协议: color-mix(in oklab, #b08d3e, white 28%);
+  --domain-开发工具链: color-mix(in oklab, #5e6d8a, white 42%);
+  --domain-光学工程: color-mix(in oklab, #c9a227, white 22%);
+  --domain-软件与驱动: color-mix(in oklab, #7a7a3e, white 34%);
+  --domain-default: color-mix(in oklab, #8a857b, white 30%);
+  /* callout 语义色 */
+  --co-tip: #4aba6a; --co-note: #58a6ff; --co-warning: #e2b341; --co-danger: #e2705f;
+}
+:root[data-theme="study"] {
+  --bg: #faf6ef; --surface: #ffffff; --ink: #1c1c1c; --ink-2: #5a564e;
+  --accent: #a63d2f; --link: #2c5e8a; --line: #e5dfd3;
+  --shadow: 0 8px 24px rgba(60, 45, 30, 0.10);
   --domain-GPU与图形技术: #a63d2f; --domain-金融基础: #2c5e8a; --domain-Web开发: #6b8f5e;
   --domain-装机与硬件: #d97b4f; --domain-芯片半导体: #8e4a3e; --domain-网络原理: #3e8e8e;
   --domain-接口协议: #b08d3e; --domain-开发工具链: #5e6d8a; --domain-光学工程: #c9a227;
   --domain-软件与驱动: #7a7a3e; --domain-default: #8a857b;
+  --co-tip: #2e7d43; --co-note: #2c5e8a; --co-warning: #9a6d1a; --co-danger: #b34a3e;
 }
+/* 亮色书房下的星图子空间（night 主题下全站即暗，无需再切） */
 :root[data-theme="study"][data-space="map"] {
   --bg: #16181d; --surface: #1e2028; --ink: #e2e2e2; --ink-2: #9a968e;
-  --accent: #3fb950; --link: #58a6ff; --line: #2d3138;
+  --accent: #4aba6a; --link: #58a6ff; --line: #2d3138;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 * { box-sizing: border-box; }
@@ -58,14 +84,21 @@ hr { border: none; border-top: 1px solid var(--line); margin: 2em 0; }
   padding: 0.6rem 1.2rem; background: color-mix(in srgb, var(--bg) 92%, transparent);
   backdrop-filter: blur(8px); border-bottom: 1px solid var(--line);
 }
-.topbar .brand { font-family: var(--font-heading); font-weight: 900; font-size: 1.05rem; color: var(--ink); }
+.topbar .brand { font-family: var(--font-heading); font-weight: 900; font-size: 1.05rem; color: var(--ink); display: inline-flex; align-items: center; gap: 0.35em; }
+.topbar .brand svg { width: 1.1em; height: 1.1em; color: var(--accent); }
 .topbar nav { display: flex; gap: 0.9rem; margin-left: auto; font-size: 0.92rem; }
 .topbar nav a { color: var(--ink-2); }
 .topbar nav a:hover, .topbar nav a[aria-current="page"] { color: var(--accent); }
-.kungfu { font-family: var(--font-mono); font-size: 0.82rem; color: var(--ink-2); border: 1px solid var(--line); border-radius: 999px; padding: 0.15rem 0.7rem; }
+.kungfu { display: inline-flex; align-items: center; gap: 0.32em; font-family: var(--font-mono); font-size: 0.82rem; color: var(--ink-2); border: 1px solid var(--line); border-radius: 999px; padding: 0.15rem 0.7rem; }
+.kungfu svg { width: 0.95em; height: 0.95em; flex-shrink: 0; }
 
-/* 笔记三栏 */
-.note-shell { display: grid; grid-template-columns: 220px minmax(0, 1fr) 240px; gap: 2rem; max-width: 1280px; margin: 1.5rem auto; padding: 0 1.2rem; }
+/* 笔记三栏：全宽布局（左树贴边、右 TOC 贴边、正文弹性居中），
+   消除宽屏下"内容孤岛"的两侧大片空白 */
+.note-shell {
+  display: grid; grid-template-columns: 230px minmax(0, 1fr) 250px;
+  gap: 2.5rem; align-items: start;
+  max-width: 1760px; margin: 1rem auto; padding: 0 1.5rem;
+}
 .note-shell aside { font-size: 0.86rem; color: var(--ink-2); position: sticky; top: 4rem; align-self: start; max-height: calc(100vh - 5rem); overflow-y: auto; }
 .note-shell aside h3 { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); margin: 1.2em 0 0.5em; }
 .note-shell aside ul { list-style: none; margin: 0; padding: 0; }
@@ -112,16 +145,94 @@ hr { border: none; border-top: 1px solid var(--line); margin: 2em 0; }
 .note-shell aside:hover::-webkit-scrollbar-thumb, .topbar nav:hover::-webkit-scrollbar-thumb { background: var(--line); }
 .note-shell aside:hover::-webkit-scrollbar-thumb:hover, .topbar nav:hover::-webkit-scrollbar-thumb:hover { background: var(--ink-2); }
 
-/* 正文排版（行宽 25-35 字 ≈ 700px） */
-.note-body { max-width: 700px; }
+/* 正文排版（行宽 25-35 字 ≈ 700px；宽屏适当放宽） */
+.note-body { max-width: 720px; margin: 0 auto; }
+@media (min-width: 1500px) { .note-body { max-width: 760px; } }
 .note-body > *:first-child { margin-top: 0; }
-.note-body h2 { font-size: 1.35rem; margin: 2em 0 0.7em; padding-bottom: 0.3em; border-bottom: 1px solid var(--line); }
+.note-body h2 {
+  font-size: 1.35rem; margin: 2em 0 0.7em; padding-bottom: 0.3em; border-bottom: 1px solid var(--line);
+}
+.note-body h2::before {
+  content: ""; display: inline-block; width: 0.42em; height: 0.42em; border-radius: 2px;
+  background: var(--accent); opacity: 0.9; margin-right: 0.5em; vertical-align: 0.06em;
+}
 .note-body h3 { font-size: 1.1rem; margin: 1.6em 0 0.5em; }
 .note-body p { margin: 0.9em 0; }
+/* 首段导语：略大字号确立开篇节奏 */
+.note-body > p:first-of-type { font-size: 1.06em; line-height: 1.85; }
 .note-body ul, .note-body ol { padding-left: 1.4em; }
 .note-body li { margin: 0.35em 0; }
-.note-body strong { font-weight: 600; }
+.note-body li::marker { color: var(--accent); }
+.note-body strong { font-weight: 600; color: var(--ink); }
+/* 外链：↗ 角标区分，链接颜色淡化一档（内链为主角） */
+.note-body a[target="_blank"], .note-body a[href^="http"] { opacity: 0.92; }
+.note-body a[href^="http"]::after {
+  content: "↗"; font-size: 0.72em; margin-left: 0.12em; opacity: 0.55; vertical-align: 0.12em;
+}
+/* 表格：圆角容器 + 斑马纹（替代满框线） */
+.note-body table {
+  border-collapse: separate; border-spacing: 0; width: 100%; margin: 1em 0; font-size: 0.9em;
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+}
+.note-body th, .note-body td { border: none; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 0.5em 0.85em; text-align: left; }
+.note-body tr > *:last-child { border-right: none; }
+.note-body tbody tr:last-child > * { border-bottom: none; }
+.note-body th { font-family: var(--font-heading); background: color-mix(in srgb, var(--surface) 60%, var(--bg)); }
+.note-body tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface) 45%, var(--bg)); }
+/* 引用：左条 + 淡引号装饰 */
+.note-body blockquote { position: relative; }
+.note-body blockquote::before {
+  content: "“"; position: absolute; left: -0.32em; top: -0.3em; font-size: 2.4em; line-height: 1;
+  font-family: var(--font-body); color: var(--accent); opacity: 0.16; pointer-events: none;
+}
 .wikilink-broken { color: var(--ink-2); border-bottom: 1px dashed var(--line); cursor: help; }
+
+/* Obsidian 风格 callout（rehype 由 > [!TIP] 等语法转换） */
+.callout {
+  border: 1px solid var(--line); border-left: 3px solid var(--co-c, var(--accent));
+  background: color-mix(in srgb, var(--co-c, var(--accent)) 8%, var(--surface));
+  border-radius: 10px; padding: 0.75em 1.1em; margin: 1.1em 0;
+}
+.callout-title {
+  display: flex; align-items: center; gap: 0.45em; font-family: var(--font-heading);
+  font-weight: 700; font-size: 0.92em; color: var(--co-c, var(--accent)); margin-bottom: 0.25em;
+}
+.callout-content > *:first-child { margin-top: 0; }
+.callout-content > *:last-child { margin-bottom: 0; }
+.callout-tip { --co-c: var(--co-tip); }
+.callout-note, .callout-info { --co-c: var(--co-note); }
+.callout-warning, .callout-caution { --co-c: var(--co-warning); }
+.callout-danger, .callout-error { --co-c: var(--co-danger); }
+
+/* 笔记 meta 卡：一行可扫读的结构条 */
+.note-shell .meta-row {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 0.5rem 0.9rem;
+}
+
+/* 官网链接 chips（techLinks 命中时出现在 meta 卡下方） */
+.official-links { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: -0.6rem 0 1.2rem; }
+.official-links a {
+  display: inline-flex; align-items: center; gap: 0.35em; font-size: 0.8rem;
+  color: var(--ink-2); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 999px; padding: 0.2em 0.8em;
+  transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.official-links a svg { width: 0.85em; height: 0.85em; }
+.official-links a:hover { color: var(--accent); border-color: var(--accent); text-decoration: none; }
+
+/* 主题切换按钮 */
+.theme-toggle {
+  display: inline-flex; align-items: center; justify-content: center; width: 1.9rem; height: 1.9rem;
+  border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink-2);
+  cursor: pointer; transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.theme-toggle:hover { color: var(--accent); border-color: var(--accent); }
+.theme-toggle svg { width: 1rem; height: 1rem; }
+:root[data-theme="night"] .theme-toggle .icon-sun { display: block; }
+:root[data-theme="night"] .theme-toggle .icon-moon { display: none; }
+:root[data-theme="study"] .theme-toggle .icon-sun { display: none; }
+:root[data-theme="study"] .theme-toggle .icon-moon { display: block; }
 
 /* 徽章与元信息 */
 .meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.4rem 0 1.2rem; font-size: 0.82rem; color: var(--ink-2); }
@@ -147,8 +258,13 @@ hr { border: none; border-top: 1px solid var(--line); margin: 2em 0; }
 .q-item.open::before { background: var(--accent); }
 .q-item .q-head { display: flex; gap: 0.6rem; align-items: baseline; flex-wrap: wrap; }
 .q-item .q-id { font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-2); }
-.q-status { font-size: 0.72rem; padding: 0.05em 0.55em; border-radius: 999px; border: 1px solid var(--line); }
+.q-status { display: inline-flex; align-items: center; gap: 0.3em; font-size: 0.72rem; padding: 0.05em 0.55em; border-radius: 999px; border: 1px solid var(--line); }
+.q-status svg { width: 0.85em; height: 0.85em; }
 .q-status.open { color: var(--accent); border-color: var(--accent); }
+
+/* 首页 section 标题与图标 */
+.sec-title { display: flex; align-items: baseline; gap: 0.4em; }
+.sec-title > svg { width: 1em; height: 1em; align-self: center; flex-shrink: 0; color: var(--accent); }
 
 /* 首页 hub（重设计：一张可继续工作的学习书桌） */
 .home { max-width: 900px; margin: 1.5rem auto; padding: 0 1.2rem; }

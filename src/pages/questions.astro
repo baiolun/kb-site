@@ -1,6 +1,7 @@
 ---
 import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { Icon } from "astro-icon/components";
 import { noteHref } from "../lib/noteHref";
 import questions from "../data/questions.json";
 
@@ -18,14 +19,16 @@ const qRows = sorted.map((q) => {
 
 <BaseLayout title="问题日志" current="questions">
   <div class="q-timeline">
-    <h1 style="font-size:1.25rem">❓ 好奇心地图 <small style="font-size:0.8rem;color:var(--ink-2)">{questions.length} 问 · {openCount} open</small></h1>
+    <h1 style="font-size:1.25rem;display:flex;align-items:center;gap:.4em"><Icon name="lucide:circle-help" /> 好奇心地图 <small style="font-size:0.8rem;color:var(--ink-2)">{questions.length} 问 · {openCount} open</small></h1>
     <p style="color:var(--ink-2);font-size:0.88rem">每个问题都是一次好奇心的记录。open 的问题随时可以回来追问。</p>
     {qRows.map((q) => (
       <div class={`q-item ${q.status === "open" ? "open" : ""}`} id={q.id}>
         <div class="q-head">
           <span class="q-id">{q.id}</span>
           <span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--ink-2)">{q.date}</span>
-          <span class={`q-status ${q.status}`}>{q.status === "open" ? "🌱 open" : "🌳 answered"}</span>
+          <span class={`q-status ${q.status}`}>
+            {q.status === "open" ? <><Icon name="lucide:circle-dot" /> open</> : <><Icon name="lucide:circle-check" /> answered</>}
+          </span>
         </div>
         <div style="margin:0.25em 0 0.3em">{q.question}</div>
         <div style="font-size:0.8rem;color:var(--ink-2)">

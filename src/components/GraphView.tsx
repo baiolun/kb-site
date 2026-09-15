@@ -6,7 +6,7 @@ import data from "../data/graph.json";
 import { domainColor } from "../lib/domains";
 import { noteHref } from "../lib/noteHref";
 
-// 知识星图：sigma.js + 领域着色 + hover 邻接高亮 + 点击下钻（kb-site-design signature：节点飞成页首标题由 View Transitions 后续叠加）
+// 知识星图：sigma.js + 领域着色 + hover 邻接高亮 + 渐进力导向入场 + 节点拖拽 + 点击下钻
 export default function GraphView() {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -33,9 +33,6 @@ export default function GraphView() {
     }
     for (const e of data.edges) if (!graph.hasEdge(e.source, e.target)) graph.addEdge(e.source, e.target, { size: 1, color: "#2d3138" });
 
-    const sensible = forceAtlas2.inferSettings(graph);
-    forceAtlas2.assign(graph, { iterations: 120, settings: sensible });
-
     const renderer = new Sigma(graph, container, {
       allowInvalidContainer: true,
       minCameraRatio: 0.1,
@@ -46,7 +43,51 @@ export default function GraphView() {
       defaultEdgeType: "line",
     });
 
-    // hover：邻接亮、其余压暗（Obsidian 惯例）
+    // ── 渐进力导向：节点从中心逐帧散开成簇（Obsidian 图谱的生成感），而非一次性算好 ──
+    const settings = forceAtlas2.inferSettings(graph);
+    let frames = 0;
+    let layoutDone = false;
+    const tick = () => {
+      if (layoutDone) return;
+      forceAtlas2.assign(graph, { iterations: 2, settings });
+      frames += 2;
+      if (frames < 160) requestAnimationFrame(tick);
+      else layoutDone = true;
+    };
+    requestAnimationFrame(tick);
+
+    // ── 节点拖拽（Obsidian 惯例）：拖动节点改变坐标，拖过的节点抑制本次点击导航 ──
+    let draggedNode: string | null = null;
+    let suppressClick = false;
+    renderer.on("downNode", ({ node }) => {
+      draggedNode = node;
+      suppressClick = false;
+      graph.setNodeAttribute(node, "highlighted", true);
+    });
+    renderer.on("mousemovebody", (e) => {
+      if (!draggedNode) return;
+      const pos = renderer.viewportToGraph(e);
+      graph.setNodeAttribute(draggedNode, "x", pos.x);
+      graph.setNodeAttribute(draggedNode, "y", pos.y);
+      suppressClick = true;
+      layoutDone = true; // 拖拽视为手动布局，停止自动收敛
+      e.preventSigmaDefault();
+      e.original?.preventDefault();
+    });
+    const endDrag = () => {
+      if (draggedNode) graph.removeNodeAttribute(draggedNode, "highlighted");
+      draggedNode = null;
+    };
+    renderer.on("mouseup", endDrag);
+    renderer.on("clickNode", ({ node }) => {
+      if (suppressClick) {
+        suppressClick = false;
+        return;
+      }
+      window.location.href = noteHref(node);
+    });
+
+    // ── hover：邻接亮、其余压暗（Obsidian 惯例）──
     let hovered: string | null = null;
     const applyDim = () => {
       const neighbors = hovered ? new Set(graph.neighbors(hovered)) : null;
@@ -68,11 +109,11 @@ export default function GraphView() {
       hovered = null;
       applyDim();
     });
-    renderer.on("clickNode", ({ node }) => {
-      window.location.href = noteHref(node);
-    });
 
-    return () => renderer.kill();
+    return () => {
+      layoutDone = true;
+      renderer.kill();
+    };
   }, []);
 
   return <div ref={ref} style={{ width: "100%", height: "calc(100vh - 60px)" }} />;

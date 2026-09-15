@@ -1,5 +1,6 @@
 ---
 import { ClientRouter } from "astro:transitions";
+import { Icon } from "astro-icon/components";
 import "../styles/global.css";
 interface Props { title: string; space?: "page" | "map"; current?: "home" | "graph" | "questions" | "learn" | "archive" | "notes"; }
 const { title, space = "page", current = "" } = Astro.props;
@@ -11,23 +12,40 @@ const nav = [
   { href: "/archive/", key: "archive", label: "归档" },
 ];
 ---
-<html lang="zh-CN" data-theme="study" data-space={space}>
+
+<html lang="zh-CN" data-space={space}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title} · 种子库</title>
+    <script is:inline>
+      // 主题在首帧渲染前写入（防 FOUC）；默认 night（亮色刺眼，维护者反馈），可切回 study
+      (() => {
+        const set = () => {
+          let t;
+          try { t = localStorage.getItem("kb-theme"); } catch {}
+          document.documentElement.dataset.theme = t === "study" ? "study" : "night";
+        };
+        set();
+        document.addEventListener("astro:after-swap", set);
+      })();
+    </script>
     <ClientRouter />
   </head>
   <body>
     <a class="skip-link" href="#main">跳至内容</a>
     <header class="topbar">
-      <a class="brand" href="/">🌱 种子库</a>
-      <span class="kungfu" id="kungfu-badge" title="今日学习时长（本机活动估计，闲置 60 秒暂停）">⏱ —</span>
+      <a class="brand" href="/"><Icon name="lucide:sprout" /> 种子库</a>
+      <span class="kungfu" id="kungfu-badge" title="今日学习时长（本机活动估计，闲置 60 秒暂停）"><Icon name="lucide:timer" /><span id="kungfu-time">—</span></span>
       <nav aria-label="主导航">
         {nav.map((n) => (
           <a href={n.href} aria-current={current === n.key ? "page" : undefined}>{n.label}</a>
         ))}
       </nav>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="切换亮暗主题" title="切换亮暗主题">
+        <Icon name="lucide:sun" class="icon-sun" />
+        <Icon name="lucide:moon" class="icon-moon" />
+      </button>
     </header>
     <main id="main">
       <slot />
@@ -46,35 +64,40 @@ const nav = [
         let idle = false, timer: number | undefined;
         let dayKey = localDayKey();
         let seconds = parseInt(localStorage.getItem(dayKey) ?? "0", 10) || 0;
-        w.__kungfuToday = () => ({ dayKey, seconds, storageOk: true });
         setInterval(() => {
           const nowKey = localDayKey();
           if (nowKey !== dayKey) { dayKey = nowKey; seconds = parseInt(localStorage.getItem(dayKey) ?? "0", 10) || 0; }
           if (idle) return;
           seconds += 1;
           try { localStorage.setItem(dayKey, String(seconds)); } catch {}
-          w.__kungfuToday = () => ({ dayKey, seconds, storageOk: true });
-          const badge = document.getElementById("kungfu-badge");
-          if (badge) badge.textContent = `⏱ ${fmt(seconds)}`;
+          const badge = document.getElementById("kungfu-time");
+          if (badge) badge.textContent = fmt(seconds);
         }, 1000);
         const reset = () => { idle = false; clearTimeout(timer); timer = window.setTimeout(() => (idle = true), 60_000); };
         ["mousemove", "keydown", "scroll", "click"].forEach((e) => window.addEventListener(e, reset, { passive: true }));
         reset();
       }
       const paintBadge = () => {
-        const badge = document.getElementById("kungfu-badge");
+        const badge = document.getElementById("kungfu-time");
         if (!badge) return;
         let secs = 0, ok = true;
         try {
           secs = parseInt(localStorage.getItem(localDayKey()) ?? "0", 10) || 0;
         } catch { ok = false; }
-        badge.textContent = ok ? `⏱ ${fmt(secs)}` : "⏱ 本次会话";
+        badge.textContent = ok ? fmt(secs) : "本次会话";
         badge.title = ok
           ? "今日学习时长（本机活动估计，闲置 60 秒暂停，不含其他设备）"
           : "浏览器本地存储不可用，时长仅本次会话有效";
       };
       paintBadge();
       document.addEventListener("astro:page-load", paintBadge);
+
+      // 主题切换
+      document.getElementById("theme-toggle")?.addEventListener("click", () => {
+        const next = document.documentElement.dataset.theme === "night" ? "study" : "night";
+        document.documentElement.dataset.theme = next;
+        try { localStorage.setItem("kb-theme", next); } catch {}
+      });
     </script>
   </body>
 </html>

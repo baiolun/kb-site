@@ -1,6 +1,7 @@
 ---
 import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { Icon } from "astro-icon/components";
 import { domainColor } from "../lib/domains";
 import { noteHref } from "../lib/noteHref";
 import questions from "../data/questions.json";
@@ -63,7 +64,7 @@ const updated = (stats.generatedAt ?? "").slice(0, 10);
     <div class="home-grid">
       <!-- ① 接着上次 -->
       <section class="card-primary" aria-labelledby="resume-h">
-        <h2 id="resume-h">📍 接着上次</h2>
+        <h2 id="resume-h" class="sec-title"><Icon name="lucide:map-pin" /> 接着上次</h2>
         {(cs.topic || cs.phase) ? (
           <>
             <div class="resume-topic">{cs.phase}{cs.topic ? ` → ${cs.topic}` : ""}{cs.subTopic ? ` → ${cs.subTopic}` : ""}</div>
@@ -91,7 +92,7 @@ const updated = (stats.generatedAt ?? "").slice(0, 10);
 
       <!-- ② 还想弄懂 -->
       <section class="card-side" aria-labelledby="ask-h">
-        <h2 id="ask-h">❓ 还想弄懂 <a class="more" href="/questions/">全部 {openCount} 条 →</a></h2>
+        <h2 id="ask-h" class="sec-title"><Icon name="lucide:circle-help" /> 还想弄懂 <a class="more" href="/questions/">全部 {openCount} 条 →</a></h2>
         {openQ.length > 0 ? (
           <ul class="q-lines">
             {openQ.map((q) => (
@@ -112,14 +113,14 @@ const updated = (stats.generatedAt ?? "").slice(0, 10);
 
     <!-- ③ 功夫值（F06：直接进入/站内返回/刷新均渲染；F09：零记录温和提示） -->
     <section class="home-sec" id="kungfu-panel" aria-labelledby="kungfu-h">
-      <h2 id="kungfu-h">⏱ 最近 7 天的功夫 <small>本机活动估计 · 闲置自动暂停 · 不含其他设备</small></h2>
+      <h2 id="kungfu-h" class="sec-title"><Icon name="lucide:timer" /> 最近 7 天的功夫 <small>本机活动估计 · 闲置自动暂停 · 不含其他设备</small></h2>
       <div id="kungfu-bars" class="kungfu-bars"></div>
       <div id="kungfu-empty" class="empty" style="display:none">这个浏览器还没有学习记录。随便打开一篇笔记，顶栏计时会自动开始累计。</div>
     </section>
 
     <!-- ④ 按主题找（F03 可点；F10 紧凑条目形态） -->
     <section class="home-sec" aria-labelledby="topics-h">
-      <h2 id="topics-h">🗺️ 按主题找</h2>
+      <h2 id="topics-h" class="sec-title"><Icon name="lucide:map" /> 按主题找</h2>
       <ul class="domain-lines">
         {topics.map((t) => (
           <li>
@@ -146,7 +147,7 @@ const updated = (stats.generatedAt ?? "").slice(0, 10);
 
     <!-- ⑤ 最近新增（F02 诚实命名；时间列表形态） -->
     <section class="home-sec" aria-labelledby="recent-h">
-      <h2 id="recent-h">🆕 最近新增 <small>按笔记创建时间</small></h2>
+      <h2 id="recent-h" class="sec-title"><Icon name="lucide:sparkles" /> 最近新增 <small>按笔记创建时间</small></h2>
       <ul class="recent-lines">
         {recent.map((n) => (
           <li>

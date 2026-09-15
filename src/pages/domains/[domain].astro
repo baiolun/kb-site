@@ -1,6 +1,7 @@
 ---
 import { getCollection } from "astro:content";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { Icon } from "astro-icon/components";
 import { domainColor } from "../../lib/domains";
 import { noteHref } from "../../lib/noteHref";
 
@@ -37,7 +38,7 @@ const rest = list.filter((n) => n !== overview);
 
     {overview && (
       <a class="note-card" style={`--domain-c:${color};display:block;margin:1rem 0;padding:1.1rem 1.3rem;border-width:2px`} href={noteHref(overview.id)}>
-        <div class="c-title" style="font-size:1.05rem">🌳 {overview.data.title}（领域总览）</div>
+        <div class="c-title" style="font-size:1.05rem;display:flex;align-items:center;gap:.4em"><Icon name="lucide:trees" /> {overview.data.title}（领域总览）</div>
         <div class="c-meta">{overview.data.created ?? ""} · 从这里进入这片领域</div>
       </a>
     )}
@@ -45,7 +46,7 @@ const rest = list.filter((n) => n !== overview);
     <div class="card-grid">
       {rest.map((n) => (
         <a class="note-card" style={`--domain-c:${color}`} href={noteHref(n.id)}>
-          <div class="c-title">🌱 {n.data.title}</div>
+          <div class="c-title">{n.data.title}</div>
           <div class="c-meta">{n.data.created ?? ""}</div>
         </a>
       ))}

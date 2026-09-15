@@ -1,9 +1,11 @@
 ---
 import { getCollection, render } from "astro:content";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { Icon } from "astro-icon/components";
 import { domainColor } from "../../lib/domains";
 import { noteHref } from "../../lib/noteHref";
 import { buildNoteTree } from "../../lib/noteTree";
+import { officialLinks } from "../../lib/techLinks";
 import NoteTree from "../../components/NoteTree.astro";
 import backlinks from "../../data/backlinks.json";
 import previewsRaw from "../../data/previews.json";
@@ -31,6 +33,8 @@ const linksIn = (backlinks as Record<string, string[]>)[entry.id] ?? [];
 const titleOf = (id: string) => (previewsRaw as Record<string, any>)[id]?.title ?? id.split("/").at(-1);
 
 const domainC = domainColor(d.domain);
+// 技术术语官网链接（标题/别名命中映射时显示）
+const official = officialLinks(d.title, d.aliases);
 ---
 
 <BaseLayout title={d.title}>
@@ -51,12 +55,21 @@ const domainC = domainColor(d.domain);
         {d.tags.map((t) => <span class="tag">#{t}</span>)}
         {d.aliases.length > 0 && <span>别名：{d.aliases.join("、")}</span>}
       </div>
+      {official.length > 0 && (
+        <div class="official-links">
+          {official.map((l) => (
+            <a href={l.url} target="_blank" rel="noopener noreferrer">
+              <Icon name="lucide:external-link" /> {l.name} 官网
+            </a>
+          ))}
+        </div>
+      )}
       <div class="note-body" id="note-body" data-note={entry.id} data-note-title={d.title}>
         <Content />
       </div>
 
       <section id="annotations-sec" style="margin-top:3rem">
-        <h2 style="font-size:1.05rem">📝 我的批注（本页 0 条）</h2>
+        <h2 style="font-size:1.05rem;display:flex;align-items:center;gap:.4em"><Icon name="lucide:pen-line" /> 我的批注（本页 0 条）</h2>
         <div id="annotation-list" style="font-size:0.88rem;color:var(--ink-2)">选正文中任意文字即可写下批注。</div>
         <button id="export-annotations" class="tag" style="margin-top:0.6rem;cursor:pointer">复制为批注 md（存入 vault）</button>
       </section>
@@ -87,6 +100,31 @@ const domainC = domainColor(d.domain);
   <script type="application/json" id="previews-data" set:html={JSON.stringify(previewsRaw).replace(/</g, "\\u003c")} />
 
   <script>
+    // ── Obsidian callout：> [!TIP] 标题 的 blockquote → 结构化卡片（客户端渐进转换）──
+    // content layer 渲染不走全局 rehype 配置，故在 DOM 侧转换；无 JS 时退化为普通引用块
+    const CALLOUT_DEFAULT = { tip: "Tip", note: "Note", info: "Info", warning: "Warning", caution: "Caution", danger: "Danger", error: "Error", example: "Example", quote: "Quote" };
+    document.querySelectorAll(".note-body blockquote").forEach((bq) => {
+      const p = bq.querySelector("p");
+      if (!p) return;
+      const first = p.firstChild;
+      if (!first || first.nodeType !== 3) return;
+      const m = (first.textContent ?? "").match(/^\s*\[!(\w+)\][+-]?[ \t]*(.*)/);
+      if (!m) return;
+      const type = m[1].toLowerCase();
+      const title = m[2].trim() || CALLOUT_DEFAULT[type] || type;
+      first.textContent = (first.textContent ?? "").slice(m[0].length);
+      const div = document.createElement("div");
+      div.className = `callout callout-${type}`;
+      const t = document.createElement("div");
+      t.className = "callout-title";
+      t.textContent = title;
+      const c = document.createElement("div");
+      c.className = "callout-content";
+      while (bq.firstChild) c.appendChild(bq.firstChild);
+      div.append(t, c);
+      bq.replaceWith(div);
+    });
+
     // ── 双链 popover：hover /notes/ 链接 → previews 摘要浮窗（延迟 180ms 防误扫）──
     // esc：previews 摘要/批注/GLM 讲解都是动态数据，一律转义后再进 innerHTML（体检 AI-001）
     const esc = (s: unknown) =>
