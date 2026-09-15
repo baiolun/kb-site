@@ -1,23 +1,39 @@
 ---
 import { ClientRouter } from "astro:transitions";
 import { Icon } from "astro-icon/components";
+import { withBase, BASE } from "../lib/base";
+import SearchUI from "../components/SearchUI.astro";
 import "../styles/global.css";
-interface Props { title: string; space?: "page" | "map"; current?: "home" | "graph" | "questions" | "learn" | "archive" | "notes"; }
-const { title, space = "page", current = "" } = Astro.props;
+interface Props { title: string; description?: string; space?: "page" | "map"; current?: "home" | "graph" | "questions" | "learn" | "archive" | "notes"; }
+const { title, description, space = "page", current = "" } = Astro.props;
 const nav = [
-  { href: "/", key: "home", label: "首页" },
-  { href: "/graph/", key: "graph", label: "图谱" },
-  { href: "/questions/", key: "questions", label: "问题" },
-  { href: "/learn/", key: "learn", label: "路径" },
-  { href: "/archive/", key: "archive", label: "归档" },
+  { href: withBase("/"), key: "home", label: "首页" },
+  { href: withBase("/graph/"), key: "graph", label: "图谱" },
+  { href: withBase("/questions/"), key: "questions", label: "问题" },
+  { href: withBase("/learn/"), key: "learn", label: "路径" },
+  { href: withBase("/archive/"), key: "archive", label: "归档" },
 ];
+const siteUrl = Astro.site ?? new URL(BASE + "/", Astro.url.origin);
+const canonical = new URL(Astro.url.pathname.replace(/index\.html$/, ""), siteUrl).href;
+const desc = description ?? "种子库：个人知识库。GPU 图形、Web 开发、大模型、考研数学等领域的笔记、双链星图与学习路径。";
+const ogTitle = `${title} · 种子库`;
 ---
 
 <html lang="zh-CN" data-space={space}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title} · 种子库</title>
+    <title>{ogTitle}</title>
+    <meta name="description" content={desc} />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" type="image/svg+xml" href={withBase("/favicon.svg")} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="种子库" />
+    <meta property="og:title" content={ogTitle} />
+    <meta property="og:description" content={desc} />
+    <meta property="og:url" content={canonical} />
+    <meta name="twitter:card" content="summary" />
     <script is:inline>
       // 主题在首帧渲染前写入（防 FOUC）；默认 night（亮色刺眼，维护者反馈），可切回 study
       (() => {
@@ -35,13 +51,14 @@ const nav = [
   <body>
     <a class="skip-link" href="#main">跳至内容</a>
     <header class="topbar">
-      <a class="brand" href="/"><Icon name="lucide:sprout" /> 种子库</a>
+      <a class="brand" href={withBase("/")}><Icon name="lucide:sprout" /> 种子库</a>
       <span class="kungfu" id="kungfu-badge" title="今日学习时长（本机活动估计，闲置 60 秒暂停）"><Icon name="lucide:timer" /><span id="kungfu-time">—</span></span>
       <nav aria-label="主导航">
         {nav.map((n) => (
           <a href={n.href} aria-current={current === n.key ? "page" : undefined}>{n.label}</a>
         ))}
       </nav>
+      <SearchUI />
       <button id="theme-toggle" class="theme-toggle" type="button" aria-label="切换亮暗主题" title="切换亮暗主题">
         <Icon name="lucide:sun" class="icon-sun" />
         <Icon name="lucide:moon" class="icon-moon" />

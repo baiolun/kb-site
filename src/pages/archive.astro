@@ -4,6 +4,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import { Icon } from "astro-icon/components";
 import { domainColor } from "../lib/domains";
 import { noteHref } from "../lib/noteHref";
+import { tagColor } from "../lib/tagColor";
 
 // 归档：考研 / 输出成品 / 对话沉淀 / 项目解析 等非核心知识区的聚合浏览
 const notes = await getCollection("vault", (e) => e.data.collection === "notes");
@@ -23,7 +24,7 @@ const sections = Object.entries(GROUPS).map(([key, g]) => ({
 ---
 
 <BaseLayout title="归档" current="archive">
-  <div style="max-width:860px;margin:1.5rem auto;padding:0 1.2rem">
+  <div style="max-width:860px;margin:1.5rem auto;padding:0 1.2rem" data-pagefind-body>
     <h1 style="font-size:1.3rem"><Icon name="lucide:book-open" /> 归档</h1>
     {sections.map((s) => (
       <section style="margin:1.6rem 0">
@@ -32,7 +33,15 @@ const sections = Object.entries(GROUPS).map(([key, g]) => ({
           {s.notes.map((n) => (
             <a class="note-card" style={`--domain-c:${domainColor(n.data.domain)}`} href={noteHref(n.id)}>
               <div class="c-title">{n.data.title}</div>
-              <div class="c-meta">{n.data.created ?? ""}{n.data.tags.length ? " · " + n.data.tags.slice(0, 3).map((t) => "#" + t).join(" ") : ""}</div>
+              <div class="c-meta">{n.data.created ?? ""}</div>
+              {n.data.tags.length > 0 && (
+                <div class="c-tags">
+                  {/* 卡片整体是 <a>，HTML 禁止 a 嵌 a：tag 用 span 仅作展示 */}
+                  {n.data.tags.slice(0, 3).map((t) => (
+                    <span class="tag" style={`--tag-c:${tagColor(t)}`}>#{t}</span>
+                  ))}
+                </div>
+              )}
             </a>
           ))}
         </div>

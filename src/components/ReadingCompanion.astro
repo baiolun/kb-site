@@ -1,0 +1,239 @@
+---
+import { Icon } from "astro-icon/components";
+// 阅读伴侣：单篇计时 + 读完检测 + 连续天数 + 阅读进度条 + TOC spy + 沉浸模式。
+// 数据全部存 localStorage（本机）；动静仅 transform/opacity，reduced-motion 直接跳变。
+// noteId 由父页传给 data-note-id，脚本从这里读，组件本身不掺页面逻辑。
+interface Props { noteId: string; title: string; }
+const { noteId, title } = Astro.props;
+---
+
+<div id="reading-bar" aria-hidden="true"></div>
+
+<button id="immersive-btn" class="immersive-btn" type="button" aria-label="沉浸阅读（隐藏侧栏）" title="沉浸阅读（Esc 退出）">
+  <Icon name="lucide:book-open" class="ib-open" />
+  <Icon name="lucide:minimize-2" class="ib-close" />
+</button>
+
+<aside class="reading-card" id="reading-card" aria-label="本篇阅读进度">
+  <div class="rc-head"><Icon name="lucide:book-open-text" /> 本篇阅读</div>
+  <div class="rc-time"><span id="rc-min">0</span><span class="rc-unit">分钟</span></div>
+  <div class="rc-done" id="rc-done" hidden><Icon name="lucide:badge-check" /> 读完了</div>
+  <div class="rc-divider"></div>
+  <div class="rc-row"><Icon name="lucide:flame" /><span id="rc-streak">—</span></div>
+  <div class="rc-row"><Icon name="lucide:timer" /><span>今日 <b id="rc-today">0</b> 分钟</span></div>
+</aside>
+
+<div id="read-toast" class="read-toast" role="status">
+  <div class="rt-badge"><Icon name="lucide:badge-check" /></div>
+  <div class="rt-body">
+    <div class="rt-title">读完这篇了</div>
+    <div class="rt-sub" id="rt-sub"></div>
+  </div>
+</div>
+
+<script define:vars={{ noteId, title }}>
+  // 阅读卡移入右栏 aside 顶部（DOM 归位，移动端 aside 隐藏时卡片随之隐藏，toast 不受影响）
+  const aside = document.querySelector(".note-shell aside");
+  const rc = document.getElementById("reading-card");
+  if (aside && rc) aside.prepend(rc);
+
+  // ---- 工具 ----
+  const dayKeyOf = (d = new Date()) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const store = {
+    get(k, fallback = null) { try { const v = localStorage.getItem(k); return v === null ? fallback : v; } catch { return fallback; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  };
+
+  // ---- 今日全局时长（BaseLayout kungfu-<day> 已在累计，这里只读）----
+  const todayMin = () => Math.round((parseInt(store.get(`kungfu-${dayKeyOf()}`, "0"), 10) || 0) / 60);
+
+  // ---- 连续天数 ----
+  function bumpStreak() {
+    const today = dayKeyOf();
+    const raw = store.get("kb-streak");
+    let s = { last: "", count: 0 };
+    try { if (raw) s = JSON.parse(raw); } catch {}
+    if (s.last === today) return s.count;
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    s.count = s.last === dayKeyOf(y) ? s.count + 1 : 1;
+    s.last = today;
+    store.set("kb-streak", JSON.stringify(s));
+    return s.count;
+  }
+  function streakText() {
+    try {
+      const s = JSON.parse(store.get("kb-streak", '{"last":"","count":0}'));
+      if (!s.count) return "今天开始积累";
+      const y = new Date(); y.setDate(y.getDate() - 1);
+      const active = s.last === dayKeyOf() || s.last === dayKeyOf(y);
+      return active ? `连续 ${s.count} 天` : "上一次：刚才之外";
+    } catch { return "今天开始积累"; }
+  }
+
+  // ---- 单篇计时（页面可见才计）----
+  const readKey = `kb-read-${noteId}`;
+  let thisMin = Math.round((parseInt(store.get(readKey, "0"), 10) || 0) / 60);
+  const paint = () => {
+    document.getElementById("rc-min").textContent = String(thisMin);
+    document.getElementById("rc-today").textContent = String(todayMin());
+    document.getElementById("rc-streak").textContent = streakText();
+    const done = !!store.get(`kb-done-${noteId}`);
+    const el = document.getElementById("rc-done");
+    el.hidden = !done;
+    if (done) el.classList.add("show");
+  };
+  paint();
+  setInterval(() => {
+    if (document.hidden) return;
+    const secs = (parseInt(store.get(readKey, "0"), 10) || 0) + 60;
+    store.set(readKey, String(secs));
+    thisMin = Math.round(secs / 60);
+    document.getElementById("rc-min").textContent = String(thisMin);
+    document.getElementById("rc-today").textContent = String(todayMin());
+  }, 60_000);
+
+  // ---- 阅读进度条 ----
+  const bar = document.getElementById("reading-bar");
+  const body = document.querySelector(".note-body");
+  let progress = 0;
+  function updateBar() {
+    if (!body) return;
+    const rect = body.getBoundingClientRect();
+    const total = rect.height - window.innerHeight;
+    progress = total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 0;
+    bar.style.transform = `scaleX(${progress})`;
+  }
+  document.addEventListener("scroll", updateBar, { passive: true });
+  updateBar();
+
+  // ---- 读完检测（进度 ≥95%，只奖励一次）----
+  let celebrated = !!store.get(`kb-done-${noteId}`);
+  function checkDone() {
+    if (celebrated || progress < 0.95) return;
+    celebrated = true;
+    const today = dayKeyOf();
+    store.set(`kb-done-${noteId}`, today);
+    bumpStreak();
+    const done = document.getElementById("rc-done");
+    done.hidden = false;
+    requestAnimationFrame(() => done.classList.add("show"));
+    document.getElementById("rt-sub").textContent =
+      `《${title}》已读 ${thisMin} 分钟 · 今日共 ${todayMin()} 分钟`;
+    const toast = document.getElementById("read-toast");
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 3600);
+    paint();
+  }
+  document.addEventListener("scroll", checkDone, { passive: true });
+
+  // ---- TOC spy ----
+  const tocLinks = [...document.querySelectorAll(".toc-list a")];
+  if (tocLinks.length && body) {
+    const heads = tocLinks
+      .map((a) => ({ a, h: document.getElementById(decodeURIComponent(a.hash.slice(1))) }))
+      .filter((x) => x.h);
+    const spy = () => {
+      let cur = heads[0];
+      for (const x of heads) if (x.h.getBoundingClientRect().top < window.innerHeight * 0.35) cur = x;
+      tocLinks.forEach((a) => a.classList.toggle("current", cur && a === cur.a));
+    };
+    document.addEventListener("scroll", spy, { passive: true });
+    spy();
+  }
+
+  // ---- 沉浸模式 ----
+  const immBtn = document.getElementById("immersive-btn");
+  function setImmersive(on) {
+    document.documentElement.toggleAttribute("data-immersive", on);
+    immBtn.setAttribute("aria-pressed", String(on));
+  }
+  immBtn.addEventListener("click", () => setImmersive(!document.documentElement.hasAttribute("data-immersive")));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && document.documentElement.hasAttribute("data-immersive")) setImmersive(false);
+  });
+</script>
+
+<style>
+  /* 阅读进度条：顶部 2px（规范白名单项） */
+  #reading-bar {
+    position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 60;
+    background: var(--accent); transform-origin: 0 50%; transform: scaleX(0);
+    pointer-events: none;
+  }
+  /* 沉浸模式按钮：右下角浮动，退出态常显图标切换 */
+  .immersive-btn {
+    position: fixed; right: 18px; bottom: 18px; z-index: 55;
+    width: 40px; height: 40px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface); color: var(--ink-2);
+    border: 1px solid var(--line); cursor: pointer;
+    box-shadow: 0 4px 16px color-mix(in srgb, #000 18%, transparent);
+    transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out),
+      transform var(--dur-fast) var(--ease-out);
+  }
+  .immersive-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .immersive-btn:active { transform: scale(0.94); }
+  .immersive-btn svg { width: 17px; height: 17px; }
+  .immersive-btn .ib-close { display: none; }
+  :root[data-immersive] .immersive-btn .ib-close { display: block; }
+  :root[data-immersive] .immersive-btn .ib-open { display: none; }
+
+  /* 右栏「本篇阅读」卡 */
+  .reading-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 0.9rem 1rem; margin-bottom: 1rem;
+    display: flex; flex-direction: column; gap: 0.45rem;
+  }
+  .rc-head {
+    display: flex; align-items: center; gap: 6px;
+    font-family: var(--font-heading); font-weight: 600; font-size: 0.88rem; color: var(--ink-2);
+  }
+  .rc-head svg { width: 14px; height: 14px; }
+  .rc-time { font-family: var(--font-mono); font-size: 1.7rem; color: var(--ink); line-height: 1; }
+  .rc-unit { font-size: 0.8rem; color: var(--ink-2); margin-left: 6px; }
+  .rc-done {
+    display: flex; align-items: center; gap: 5px; align-self: flex-start;
+    color: var(--accent); font-size: 0.82rem; font-weight: 600;
+  }
+  .rc-done svg { width: 15px; height: 15px; }
+  .rc-done.show { animation: rc-pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+  @keyframes rc-pop { from { transform: scale(0.6); opacity: 0; } }
+  .rc-divider { border-top: 1px solid var(--line); margin: 0.15rem 0; }
+  .rc-row {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 0.82rem; color: var(--ink-2);
+  }
+  .rc-row svg { width: 13px; height: 13px; }
+  .rc-row b { color: var(--ink); font-family: var(--font-mono); font-weight: 500; }
+
+  /* 读完 toast */
+  .read-toast {
+    position: fixed; left: 50%; top: 68px; z-index: 70;
+    transform: translate(-50%, -16px); opacity: 0; pointer-events: none;
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 12px 18px;
+    box-shadow: 0 16px 48px color-mix(in srgb, #000 30%, transparent);
+    transition: transform 280ms var(--ease-out), opacity 280ms var(--ease-out);
+  }
+  .read-toast.show { transform: translate(-50%, 0); opacity: 1; }
+  .rt-badge {
+    width: 36px; height: 36px; border-radius: 50%; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent);
+  }
+  .rt-badge svg { width: 19px; height: 19px; }
+  .rt-title { font-family: var(--font-heading); font-weight: 700; font-size: 0.95rem; color: var(--ink); }
+  .rt-sub { font-size: 0.8rem; color: var(--ink-2); margin-top: 2px; }
+
+</style>
+
+<style is:global>
+  /* 沉浸模式：作用对象在 BaseLayout/页面层，scoped 编译匹配不到，走 global */
+  :root[data-immersive] .topbar { transform: translateY(-100%); }
+  :root[data-immersive] .note-shell aside { opacity: 0; pointer-events: none; }
+  :root[data-immersive] .note-shell { grid-template-columns: 0 minmax(0, 1fr) 0; }
+  .topbar { transition: transform 260ms var(--ease-out); }
+  .note-shell aside { transition: opacity 260ms var(--ease-out); }
+</style>

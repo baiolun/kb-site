@@ -105,7 +105,7 @@ hr { border: none; border-top: 1px solid var(--line); margin: 2em 0; }
 .note-shell aside li { margin: 0.3em 0; }
 .toc-list a { color: var(--ink-2); display: block; padding: 0.15em 0; border-left: 2px solid transparent; padding-left: 0.6em; transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out); }
 .toc-list a:hover, .toc-list a.active { color: var(--accent); border-left-color: var(--accent); }
-@media (max-width: 960px) { .note-shell { grid-template-columns: 1fr; } .note-shell aside { display: none; } }
+@media (max-width: 960px) { .note-shell { grid-template-columns: minmax(0, 1fr); } .note-shell aside { display: none; } }
 
 /* 左栏目录树（板块/子目录/笔记层级，当前分支默认展开） */
 .note-tree { font-size: 0.86rem; }
@@ -146,9 +146,11 @@ hr { border: none; border-top: 1px solid var(--line); margin: 2em 0; }
 .note-shell aside:hover::-webkit-scrollbar-thumb:hover, .topbar nav:hover::-webkit-scrollbar-thumb:hover { background: var(--ink-2); }
 
 /* 正文排版（行宽 25-35 字 ≈ 700px；宽屏适当放宽） */
-.note-body { max-width: 720px; margin: 0 auto; }
-@media (min-width: 1500px) { .note-body { max-width: 760px; } }
+.note-col { max-width: 720px; margin: 0 auto; }
+@media (min-width: 1500px) { .note-col { max-width: 760px; } }
+.note-body { overflow-wrap: break-word; }
 .note-body > *:first-child { margin-top: 0; }
+.note-body img { max-width: 100%; height: auto; }
 .note-body h2 {
   font-size: 1.35rem; margin: 2em 0 0.7em; padding-bottom: 0.3em; border-bottom: 1px solid var(--line);
 }
@@ -172,7 +174,8 @@ hr { border: none; border-top: 1px solid var(--line); margin: 2em 0; }
 /* 表格：圆角容器 + 斑马纹（替代满框线） */
 .note-body table {
   border-collapse: separate; border-spacing: 0; width: 100%; margin: 1em 0; font-size: 0.9em;
-  border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 10px;
+  display: block; overflow-x: auto; /* 窄屏横向滚动而非撑破/裁切版面 */
 }
 .note-body th, .note-body td { border: none; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 0.5em 0.85em; text-align: left; }
 .note-body tr > *:last-child { border-right: none; }
@@ -363,6 +366,7 @@ section.home-sec > h2 small { font-size: 0.76rem; color: var(--ink-2); font-weig
 .note-card:hover { transform: translateY(-2px); border-color: var(--domain-c, var(--accent)); text-decoration: none; }
 .note-card .c-title { font-family: var(--font-heading); font-weight: 700; font-size: 0.95rem; }
 .note-card .c-meta { font-size: 0.82rem; color: var(--ink-2); margin-top: 0.35em; }
+.note-card .c-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5em; }
 
 /* 可达性：跳至内容 + 可见焦点（F11） */
 .skip-link { position: absolute; left: -9999px; top: 0; background: var(--accent); color: #fff; padding: 0.4em 1em; border-radius: 0 0 6px 0; z-index: 100; }
@@ -379,3 +383,42 @@ main { display: block; }
   .home-grid { grid-template-columns: 1fr; }
   .domain-lines { grid-template-columns: 1fr; }
 }
+
+/* 图谱悬浮控制条 */
+.graph-ctrl {
+  position: absolute; top: 12px; right: 16px; z-index: 10;
+  display: flex; align-items: center; gap: 6px;
+}
+.graph-ctrl > button {
+  width: 34px; height: 34px; border-radius: 9px; cursor: pointer;
+  background: var(--surface); color: var(--ink-2); border: 1px solid var(--line);
+  font-family: var(--font-mono); font-size: 1rem; line-height: 1;
+  transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.graph-ctrl > button:hover { color: var(--accent); border-color: var(--accent); }
+.gc-search { position: relative; }
+.gc-search input {
+  width: 200px; height: 34px; padding: 0 12px;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 9px;
+  font: 500 0.85rem var(--font-body); outline: none;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+.gc-search input:focus { border-color: var(--accent); }
+.gc-search input::placeholder { color: var(--ink-2); opacity: 0.65; }
+.gc-results {
+  position: absolute; top: 40px; right: 0; width: 260px; max-height: 300px; overflow-y: auto;
+  list-style: none; margin: 4px 0 0; padding: 4px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 12px 36px color-mix(in srgb, #000 30%, transparent);
+}
+.gc-results button {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  background: none; border: 0; border-radius: 8px; cursor: pointer;
+  color: var(--ink); font: 500 0.84rem var(--font-body);
+  padding: 7px 9px;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.gc-results button:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.gc-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+@media (max-width: 640px) { .gc-search input { width: 130px; } }

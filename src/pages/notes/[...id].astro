@@ -1,4 +1,6 @@
 ---
+import { withBase } from "../../lib/base";
+import ReadingCompanion from "../../components/ReadingCompanion.astro";
 import { getCollection, render } from "astro:content";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { Icon } from "astro-icon/components";
@@ -47,10 +49,12 @@ const official = officialLinks(d.title, d.aliases);
       </nav>
     </aside>
 
-    <article>
+    <article data-pagefind-body>
+      <div class="note-col">
       <h1>{d.title}</h1>
+      <span hidden data-pagefind-meta="crumb">{entry.id.split("/").slice(0, -1).join(" · ")}</span>
       <div class="meta-row">
-        <span><span class="domain-dot" style={`--domain-c:${domainC}`}></span><a href={`/domains/${encodeURIComponent(d.domain)}/`}>{d.domain}</a></span>
+        <span><span class="domain-dot" style={`--domain-c:${domainC}`}></span><a href={withBase(`/domains/${encodeURIComponent(d.domain)}/`)} data-pagefind-filter="domain">{d.domain}</a></span>
         {d.created && <span>{d.created}</span>}
         {d.status && <span class="badge">{d.status}</span>}
         {d.tags.map((t) => <a class="tag" style={`--tag-c:${tagColor(t)}`} href={tagHref(t)}>#{t}</a>)}
@@ -74,7 +78,9 @@ const official = officialLinks(d.title, d.aliases);
         <div id="annotation-list" style="font-size:0.88rem;color:var(--ink-2)">选正文中任意文字即可写下批注。</div>
         <button id="export-annotations" class="tag" style="margin-top:0.6rem;cursor:pointer">复制为批注 md（存入 vault）</button>
       </section>
+      </div>
     </article>
+    <ReadingCompanion noteId={entry.id} title={d.title} />
 
     <aside>
       {toc.length > 0 && (
@@ -92,7 +98,7 @@ const official = officialLinks(d.title, d.aliases);
         ))}
       </ul>
       <h3>图谱</h3>
-      <ul><li><a href="/graph/">进入星图 →</a></li></ul>
+      <ul><li><a href={withBase("/graph/")}>进入星图 →</a></li></ul>
     </aside>
   </div>
 
@@ -145,7 +151,8 @@ const official = officialLinks(d.title, d.aliases);
       pop.style.top = `${r.bottom + window.scrollY + 8}px`;
       pop.classList.add("show");
     };
-    document.querySelectorAll<HTMLAnchorElement>('.note-body a[href^="/notes/"]').forEach((a) => {
+    document.querySelectorAll<HTMLAnchorElement>('.note-body a').forEach((a) => {
+      if (!a.getAttribute("href")?.includes("/notes/")) return;
       a.addEventListener("mouseenter", () => { clearTimeout(hideTimer); showTimer = window.setTimeout(() => show(a), 180); });
       a.addEventListener("mouseleave", () => { clearTimeout(showTimer); hideTimer = window.setTimeout(() => pop.classList.remove("show"), 120); });
     });
@@ -224,7 +231,7 @@ const official = officialLinks(d.title, d.aliases);
             const data = await res.json();
             if (!res.ok) { err = data.error ?? "讲解失败"; }
             else explanation = data.explanation;
-          } catch { err = "批注服务未启动（pnpm annotate），批注已尝试降级本地"; }
+          } catch { err = "在线讲解需要本地服务，当前已把批注保存在本机浏览器"; }
           if (err) {
             const all = loadAll();
             all.push({ ...rec, unsynced: true });

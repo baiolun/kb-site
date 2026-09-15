@@ -8,7 +8,8 @@ import matter from "gray-matter";
 import { z } from "zod";
 import GithubSlugger from "github-slugger";
 
-const VAULT = "E:/ai/ku/knowledge-vault";
+// CI/他机部署时用 VAULT_DIR 环境变量覆盖（如 GitHub Actions 中 ../knowledge-vault）
+const VAULT = process.env.VAULT_DIR ?? "E:/ai/ku/knowledge-vault";
 const SITE = new URL("..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const CONTENT_OUT = path.join(SITE, "src/content/vault");
 const DATA_OUT = path.join(SITE, "src/data");
@@ -20,6 +21,15 @@ const INCLUDE_DIRS = [
   "网站", "考研", "项目解析",
 ];
 const EXCLUDE_SEGMENTS = ["node_modules", ".git", ".obsidian", ".trash"];
+// 文件级排除（相对 vault 根；同步管道残留的测试笔记，内容无知识价值不上站）
+const EXCLUDE_FILES = [
+  "00-Inbox/2026-06-12_测试视频笔记.md", // 同步管道残留测试文件
+  "00-Inbox/2026-06-12_第二次测试笔记.md",
+  "07-学习路径/00-学习状态/术语表.md", // 0 字节空文件
+];
+// 与 astro.config.mjs base 保持一致（GitHub Pages 项目子路径）
+const BASE = "/kb-site";
+const NL = String.fromCharCode(10); // heredoc 写不了反斜杠，用 ASCII 拼正则
 
 const warnings = [];
 const warn = (kind, file, detail) => warnings.push({ kind, file, detail });
@@ -40,7 +50,7 @@ function listMarkdown(dir) {
     if (EXCLUDE_SEGMENTS.includes(entry.name)) continue;
     const p = path.join(dir, entry.name);
     if (entry.isDirectory()) out.push(...listMarkdown(p));
-    else if (entry.name.endsWith(".md")) out.push(p);
+    else if (entry.name.endsWith(".md") && !EXCLUDE_FILES.includes(path.relative(VAULT, p).replace(/\\/g, "/"))) out.push(p);
   }
   return out;
 }
@@ -88,7 +98,7 @@ function replayDataview(blockRaw, notesByTag) {
   }
   hits.sort((a, b) => (a.created ?? "").localeCompare(b.created ?? "") * (sortDesc ? -1 : 1));
   // 逐段编码：id 含 /，整体 encodeURIComponent 会产生 %2F（astro preview 500）
-  return hits.map((n) => `- [${n.title}](/notes/${n.id.split("/").map(encodeURIComponent).join("/")}/)`).join("\n");
+  return hits.map((n) => `- [${n.title}](${BASE}/notes/${n.id.split("/").map(encodeURIComponent).join("/")}/)`).join("\n");
 }
 
 const files = INCLUDE_DIRS.flatMap((d) => {
@@ -129,6 +139,9 @@ for (const abs of files) {
 
   // dataview 块此遍仅占位标记，第二遍（全库索引齐后）统一重放
   let body = parsed.content;
+  // 正文首个 H1 与笔记标题重复时剔除（页面已有标题栏，避免同题两次）
+  const h1Re = new RegExp("^# +(.+?) *$", "m");
+  body = body.replace(h1Re, (m, h) => (h.split(" ").join("").trim() === title.split(" ").join("") ? "" : m));
 
   notes.push({
     id, title, domain, rel,
@@ -178,7 +191,7 @@ const resolveLink = (target) => {
   return null;
 };
 // 逐段编码：/ 是路径分隔符不能进百分号编码（%2F 会被 astro preview/dev 拒绝）
-const noteHref = (n) => `/notes/${n.id.split("/").map(encodeURIComponent).join("/")}/`;
+const noteHref = (n) => `${BASE}/notes/${n.id.split("/").map(encodeURIComponent).join("/")}/`;
 
 // wikilink → 标准 markdown（先处理 ![[嵌入]] 再处理 [[链接]]，否则会被吃掉）
 const linkWikiLinks = (body, selfId) =>

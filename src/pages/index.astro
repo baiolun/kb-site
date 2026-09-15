@@ -1,4 +1,5 @@
 ---
+import { withBase } from "../lib/base";
 import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { Icon } from "astro-icon/components";
@@ -26,7 +27,7 @@ const otherDomains = [...byDomain.keys()].filter((d) => !TOPIC_DOMAINS.includes(
 const collections = otherDomains.map((d) => ({
   domain: d,
   count: (byDomain.get(d) ?? []).length,
-  href: d === "07-学习路径" ? "/learn/" : ["考研", "02-科普脚本", "03-公众号输出", "06-对话沉淀", "项目解析", "00-Inbox", "99-Dashboard"].includes(d) ? "/archive/" : `/domains/${encodeURIComponent(d)}/`,
+  href: d === "07-学习路径" ? withBase("/learn/") : ["考研", "02-科普脚本", "03-公众号输出", "06-对话沉淀", "项目解析", "00-Inbox", "99-Dashboard"].includes(d) ? withBase("/archive/") : withBase(`/domains/${encodeURIComponent(d)}/`),
 }));
 
 // ── 接着上次（progress 的 currentState/lastSession，标注记录日期，不冒充实时）──
@@ -52,10 +53,10 @@ const recent = notes
   .slice(0, 5);
 
 const quickLinks = [
-  { href: "/graph/", icon: "lucide:network", label: "知识星图", hint: `${stats.notes} 节点` },
-  { href: "/questions/", icon: "lucide:circle-help", label: "好奇心地图", hint: `${openCount} open` },
-  { href: "/learn/", icon: "lucide:compass", label: "学习路径", hint: "接着上次" },
-  { href: "/archive/", icon: "lucide:book-open", label: "归档", hint: "全部集合" },
+  { href: withBase("/graph/"), icon: "lucide:network", label: "知识星图", hint: `${stats.notes} 节点` },
+  { href: withBase("/questions/"), icon: "lucide:circle-help", label: "好奇心地图", hint: `${openCount} open` },
+  { href: withBase("/learn/"), icon: "lucide:compass", label: "学习路径", hint: "接着上次" },
+  { href: withBase("/archive/"), icon: "lucide:book-open", label: "归档", hint: "全部集合" },
 ];
 ---
 
@@ -103,7 +104,7 @@ const quickLinks = [
                 </div>
               )}
               <div class="resume-actions">
-                <a class="btn-accent" href="/learn/">打开学习路径 →</a>
+                <a class="btn-accent" href={withBase("/learn/")}>打开学习路径 →</a>
                 {last && <span class="hint">记录于 {last.date}，非实时阅读位置</span>}
               </div>
             </>
@@ -111,7 +112,7 @@ const quickLinks = [
             <>
               <div class="resume-topic">还没有学习记录</div>
               <div class="resume-actions">
-                <a class="btn-accent" href="/learn/">从学习路径开始 →</a>
+                <a class="btn-accent" href={withBase("/learn/")}>从学习路径开始 →</a>
                 <span class="hint">或在下方选一个主题</span>
               </div>
             </>
@@ -120,12 +121,12 @@ const quickLinks = [
 
         {/* ② 还想弄懂 */}
         <section class="card-side" aria-labelledby="ask-h">
-          <h2 id="ask-h" class="sec-title"><Icon name="lucide:circle-help" /> 还想弄懂 <a class="more" href="/questions/">全部 {openCount} 条 →</a></h2>
+          <h2 id="ask-h" class="sec-title"><Icon name="lucide:circle-help" /> 还想弄懂 <a class="more" href={withBase("/questions/")}>全部 {openCount} 条 →</a></h2>
           {openQ.length > 0 ? (
             <ul class="q-lines">
               {openQ.map((q) => (
                 <li>
-                  <a class="q-text" href={`/questions/#${q.id}`}>{q.question}</a>
+                  <a class="q-text" href={withBase(`/questions/#${q.id}`)}>{q.question}</a>
                   <div class="q-src">
                     <span class="mono">{q.id}</span>
                     {q.noteHref ? <>来自 <a href={q.noteHref}>{q.note}</a></> : q.note ? <span>来自 {q.note}</span> : null}
@@ -152,7 +153,7 @@ const quickLinks = [
         <ul class="domain-lines">
           {topics.map((t) => (
             <li>
-              <a href={`/domains/${encodeURIComponent(t.domain)}/`}>
+              <a href={withBase(`/domains/${encodeURIComponent(t.domain)}/`)}>
                 <span class="domain-dot" style={`--domain-c:${domainColor(t.domain)}`}></span>
                 <span class="d-name">{t.domain}</span>
                 <span class="d-count">{t.count} 篇</span>
@@ -207,6 +208,7 @@ const quickLinks = [
     const max = Math.max(...days.map((d) => d.secs), 60);
     const has = days.some((d) => d.secs > 0);
     panel.style.display = "";
+    bars.style.display = has ? "" : "none"; // 空态不渲染 7 个孤点（视觉像故障）
     bars.innerHTML = days
       .map((d) => {
         const h = Math.max((d.secs / max) * 64, 3);
@@ -219,8 +221,8 @@ const quickLinks = [
       })
       .join("");
     empty.style.display = has ? "none" : "";
-    empty.textContent = storageOk
-      ? "这个浏览器还没有学习记录。随便打开一篇笔记，顶栏计时会自动开始累计。"
+    empty.innerHTML = storageOk
+      ? `今天还没积累功夫。挑一篇笔记开始读，顶栏会自动计时。 <a href="${(import.meta as any).env.BASE_URL.replace(/\/$/, "")}/archive/">去归档逛逛 →</a>`
       : "浏览器本地存储不可用，时长仅本次会话有效（不影响阅读）。";
   }
   renderKungfu();

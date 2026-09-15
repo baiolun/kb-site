@@ -9,4 +9,6 @@ const PALETTE = [
 export const tagColor = (tag: string) =>
   PALETTE[[...tag].reduce((s, c) => s + c.charCodeAt(0), 0) % PALETTE.length];
 
-export const tagHref = (tag: string) => `/tags/${encodeURIComponent(tag)}/`;
+import { withBase } from "./base";
+
+export const tagHref = (tag: string) => withBase(`/tags/${encodeURIComponent(tag)}/`);
