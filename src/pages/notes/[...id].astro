@@ -6,6 +6,7 @@ import { domainColor } from "../../lib/domains";
 import { noteHref } from "../../lib/noteHref";
 import { buildNoteTree } from "../../lib/noteTree";
 import { officialLinks } from "../../lib/techLinks";
+import { tagColor, tagHref } from "../../lib/tagColor";
 import NoteTree from "../../components/NoteTree.astro";
 import backlinks from "../../data/backlinks.json";
 import previewsRaw from "../../data/previews.json";
@@ -49,10 +50,10 @@ const official = officialLinks(d.title, d.aliases);
     <article>
       <h1>{d.title}</h1>
       <div class="meta-row">
-        <span><span class="domain-dot" style={`--domain-c:${domainC}`}></span>{d.domain}</span>
+        <span><span class="domain-dot" style={`--domain-c:${domainC}`}></span><a href={`/domains/${encodeURIComponent(d.domain)}/`}>{d.domain}</a></span>
         {d.created && <span>{d.created}</span>}
         {d.status && <span class="badge">{d.status}</span>}
-        {d.tags.map((t) => <span class="tag">#{t}</span>)}
+        {d.tags.map((t) => <a class="tag" style={`--tag-c:${tagColor(t)}`} href={tagHref(t)}>#{t}</a>)}
         {d.aliases.length > 0 && <span>别名：{d.aliases.join("、")}</span>}
       </div>
       {official.length > 0 && (

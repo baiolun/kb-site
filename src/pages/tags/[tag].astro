@@ -1,0 +1,49 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { Icon } from "astro-icon/components";
+import { domainColor } from "../../lib/domains";
+import { noteHref } from "../../lib/noteHref";
+import { tagColor } from "../../lib/tagColor";
+
+// 标签页（维护者反馈：笔记属性可跳转——点击 tag 查看同标签全部笔记）
+export async function getStaticPaths() {
+  const notes = await getCollection("vault", (e) => e.data.collection === "notes");
+  const map = new Map<string, typeof notes>();
+  for (const n of notes) {
+    for (const t of n.data.tags) {
+      const list = map.get(t) ?? [];
+      list.push(n);
+      map.set(t, list);
+    }
+  }
+  return [...map.entries()].map(([tag, list]) => ({
+    params: { tag },
+    props: { list: list.sort((a, b) => (b.data.created ?? "").localeCompare(a.data.created ?? "")) },
+  }));
+}
+
+const { list } = Astro.props;
+const tag = Astro.params.tag;
+const color = tagColor(tag);
+---
+
+<BaseLayout title={`#${tag}`}>
+  <div style="max-width:900px;margin:1.5rem auto;padding:0 1.2rem">
+    <div style={`border-top:4px solid ${color};padding-top:.8rem`}>
+      <h1 style="font-size:1.35rem;margin:0;display:flex;align-items:center;gap:.4em">
+        <span style="color:var(--ink-2)">#</span>{tag}
+      </h1>
+      <div class="meta-row"><span>{list.length} 篇笔记使用此标签</span></div>
+    </div>
+
+    <div class="card-grid" style="margin:1.4rem 0">
+      {list.map((n) => (
+        <a class="note-card" style={`--domain-c:${domainColor(n.data.domain)}`} href={noteHref(n.id)}>
+          <div class="c-title">{n.data.title}</div>
+          <div class="c-meta">{n.data.created ?? ""}{n.data.domain ? " · " + n.data.domain : ""}</div>
+        </a>
+      ))}
+    </div>
+  </div>
+</BaseLayout>
