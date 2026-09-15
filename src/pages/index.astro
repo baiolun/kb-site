@@ -206,16 +206,17 @@ const quickLinks = [
       days.push({ label: `${d.getMonth() + 1}/${d.getDate()}`, secs });
     }
     const max = Math.max(...days.map((d) => d.secs), 60);
-    const has = days.some((d) => d.secs > 0);
+    const has = days.some((d) => d.secs >= 60); // 满 1 分钟才算「有学习记录」，避免新访客只停留几秒就出现 0m 柱
     panel.style.display = "";
     bars.style.display = has ? "" : "none"; // 空态不渲染 7 个孤点（视觉像故障）
     bars.innerHTML = days
       .map((d) => {
+        const live = d.secs >= 60;
         const h = Math.max((d.secs / max) * 64, 3);
         const txt = d.secs >= 3600 ? `${(d.secs / 3600).toFixed(1)}h` : `${Math.round(d.secs / 60)}m`;
         return `<div style="flex:1;text-align:center">
-          <div>${d.secs > 0 ? txt : "·"}</div>
-          <div style="height:${h}px;background:var(--accent);border-radius:3px 3px 0 0;margin:2px 0;opacity:${d.secs > 0 ? 0.85 : 0.25}"></div>
+          <div>${live ? txt : "·"}</div>
+          <div style="height:${h}px;background:var(--accent);border-radius:3px 3px 0 0;margin:2px 0;opacity:${live ? 0.85 : 0.25}"></div>
           <div>${d.label}</div>
         </div>`;
       })
