@@ -9,7 +9,7 @@ import { z } from "zod";
 import GithubSlugger from "github-slugger";
 
 // CI/他机部署时用 VAULT_DIR 环境变量覆盖（如 GitHub Actions 中 ../knowledge-vault）
-const VAULT = process.env.VAULT_DIR ?? "E:/ai/ku/knowledge-vault";
+const VAULT = process.env.VAULT_DIR ?? "E:/ai/ku/knowledge-vault"; // 项目已独立至 E:/ai/kb-site，vault 留在 ku 工作区
 const SITE = new URL("..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const CONTENT_OUT = path.join(SITE, "src/content/vault");
 const DATA_OUT = path.join(SITE, "src/data");
@@ -258,17 +258,46 @@ const questions = [];
 if (fs.existsSync(qlogPath)) {
   let raw = fs.readFileSync(qlogPath, "utf8");
   if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
-  const sections = raw.split(/^## /m).slice(1);
-  for (const s of sections) {
-    const head = s.match(/^(Q\d+)\s*\|\s*(\d{4}-\d{2}-\d{2})\s*\|\s*(.+)/);
+  // 先屏蔽 ``` 围栏内的格式模板，避免 "## Qxxx" 示例被当成真实条目（曾产生脏数据 Q013）
+  let inFence = false;
+  const body = raw
+    .split(NL)
+    .map((l) => {
+      if (l.trimStart().startsWith("```")) inFence = !inFence;
+      return inFence ? "" : l;
+    })
+    .join(NL);
+  const sections = body.split(/^## /m).slice(1);
+  // 同名笔记歧义（如科普脚本与知识笔记各有一篇 DLSS技术）：优先映射 01-知识笔记 下的正本
+  const titleToNote = new Map();
+  for (const n of notes) {
+    const prev = titleToNote.get(n.title);
+    if (!prev || (n.id.startsWith("01-知识笔记/") && !prev.id.startsWith("01-知识笔记/"))) titleToNote.set(n.title, n);
+  }
+  for (const sec of sections) {
+    const head = sec.match(/^(Q\d+)\s*\|\s*(\d{4}-\d{2}-\d{2})\s*\|\s*(.+)/);
     if (!head) continue;
-    const status = s.match(/^- 状态：(.+)$/m)?.[1]?.trim();
-    const note = s.match(/^- 知识点：\[\[(.+?)\]\]/m)?.[1]?.trim();
-    const adjacent = [...s.matchAll(/Q\d+/g)].map((m) => m[0]).filter((q) => q !== head[1]);
+    const status = sec.match(/^- 状态：(.+)$/m)?.[1]?.trim().split(/\s+/)[0];
+    const note = sec.match(/^- 知识点：\[\[(.+?)\]\]/m)?.[1]?.trim();
+    const adjacent = [...sec.matchAll(/Q\d+/g)].map((m) => m[0]).filter((q) => q !== head[1]);
+    const noteEntry = note ? titleToNote.get(note) : undefined;
     questions.push({
       id: head[1], date: head[2], question: head[3].trim(),
-      status: status ?? "open", note, adjacent,
+      status: status ?? "open", note,
+      noteId: noteEntry?.id ?? null,   // 知识点笔记 id（可直达）
+      domain: noteEntry?.domain ?? null, // 领域：从知识点笔记推导（无则由相邻问题兜底，见下）
+      adjacent,
     });
+  }
+  // 无知识点的问题：取相邻问题中出现最多的领域兜底（相邻定义即同主题追问）
+  for (const q of questions) {
+    if (q.domain) continue;
+    const byAdj = questions.filter((o) => q.adjacent.includes(o.id) && o.domain).map((o) => o.domain);
+    const rev = questions.filter((o) => o.adjacent.includes(q.id) && o.domain).map((o) => o.domain);
+    const counts = {};
+    for (const d of [...byAdj, ...rev]) counts[d] = (counts[d] ?? 0) + 1;
+    const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    q.domain = best ? best[0] : "待定位";
   }
 } else {
   warn("missing-file", "07-学习路径/00-问题日志/问题日志.md", "");

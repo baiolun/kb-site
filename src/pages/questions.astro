@@ -2,41 +2,447 @@
 import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { Icon } from "astro-icon/components";
-import { noteHref } from "../lib/noteHref";
+import { domainColor } from "../lib/domains";
 import questions from "../data/questions.json";
+import progress from "../data/progress.json";
 
-const sorted = [...questions].sort((a, b) => b.id.localeCompare(a.id));
+// 「知识面」：提问驱动的知识发展视图。每次提问 = 在某领域记下一分；
+// 领域为面、问题为点，相邻问题连线，「生长回放」演出由点向面的过程。
+// （替代旧「好奇心地图」时间线；learn 的复习排程/薄弱点吸收进右栏。）
+
 const openCount = questions.filter((q) => q.status === "open").length;
+const dates = questions.map((q) => q.date).sort();
+const dateMin = dates[0] ?? "";
+const dateMax = dates[dates.length - 1] ?? "";
 
-// 体检 USAB-003 修复：q.note 是 [[标题]] 提取的标题，需映射为笔记 id 才能拼出可达链接
+// 领域分组（parser 已 join domain）
+const byDomain = new Map<string, typeof questions>();
+for (const q of questions) {
+  const d = q.domain ?? "待定位";
+  (byDomain.get(d) ?? byDomain.set(d, []).get(d)!).push(q);
+}
+const groups = [...byDomain.entries()]
+  .map(([domain, qs]) => ({ domain, count: qs.length, color: domainColor(domain) }))
+  .sort((a, b) => b.count - a.count);
+
+// 待开垦：有笔记但 0 问题的领域（反向引导提问）
 const notes = await getCollection("vault", (e) => e.data.collection === "notes");
-const titleToId = new Map(notes.map((n) => [n.data.title, n.id]));
-const qRows = sorted.map((q) => {
-  const nid = q.note ? titleToId.get(q.note.replace(/^\[\[|\]\]$/g, "")) : undefined;
-  return { ...q, noteHref: nid ? noteHref(nid) : undefined };
-});
+const noteCount = new Map<string, number>();
+for (const n of notes) noteCount.set(n.data.domain, (noteCount.get(n.data.domain) ?? 0) + 1);
+const untouched = [...noteCount.entries()]
+  .filter(([d]) => !byDomain.has(d))
+  .sort((a, b) => b[1] - a[1])
+  .slice(0, 6)
+  .map(([d, c]) => ({ domain: d, count: c, color: domainColor(d) }));
+
+// 右栏：复习排程（吸收自 learn，展示制）+ 薄弱点
+const reviews = Object.values(progress.reviewSchedule ?? {})
+  .sort((a: any, b: any) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""));
+const today = new Date().toISOString().slice(0, 10);
+const isDue = (r: any) => (r.dueDate ?? "9999") <= today;
+const dueCount = reviews.filter(isDue).length;
+const weaknesses = progress.weaknesses ?? [];
+
+const daysTotal = Math.max(
+  Math.round((new Date(dateMax + "T00:00:00Z").getTime() - new Date(dateMin + "T00:00:00Z").getTime()) / 86400000),
+  1,
+);
+const payload = {
+  base: import.meta.env.BASE_URL.replace(/\/$/, ""),
+  min: dateMin,
+  max: dateMax,
+  days: daysTotal,
+  questions: questions.map((q) => ({
+    id: q.id, date: q.date, q: q.question, status: q.status,
+    note: q.note ?? null, noteId: q.noteId, domain: q.domain, adjacent: q.adjacent,
+  })),
+  groups,
+};
 ---
 
-<BaseLayout title="问题日志" current="questions">
-  <div class="q-timeline" data-pagefind-body>
-    <h1 style="font-size:1.25rem;display:flex;align-items:center;gap:.4em"><Icon name="lucide:circle-help" /> 好奇心地图 <small style="font-size:0.8rem;color:var(--ink-2)">{questions.length} 问 · {openCount} open</small></h1>
-    <p style="color:var(--ink-2);font-size:0.88rem">每个问题都是一次好奇心的记录。open 的问题随时可以回来追问。</p>
-    {qRows.map((q) => (
-      <div class={`q-item ${q.status === "open" ? "open" : ""}`} id={q.id}>
-        <div class="q-head">
-          <span class="q-id">{q.id}</span>
-          <span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--ink-2)">{q.date}</span>
-          <span class={`q-status ${q.status}`}>
-            {q.status === "open" ? <><Icon name="lucide:circle-dot" /> open</> : <><Icon name="lucide:circle-check" /> answered</>}
-          </span>
-        </div>
-        <div style="margin:0.25em 0 0.3em">{q.question}</div>
-        <div style="font-size:0.8rem;color:var(--ink-2)">
-          {q.note && q.noteHref && <>知识点：<a href={q.noteHref}>{q.note}</a> · </>}
-          {q.note && !q.noteHref && <>知识点：{q.note}（暂无对应笔记） · </>}
-          {q.adjacent.length > 0 && <span>相邻：{q.adjacent.join("、")}</span>}
-        </div>
+<BaseLayout title="知识面" description="问野的知识面：每次提问都在某个领域记下一分，由点向面生长。" space="map" current="questions">
+  <div class="kf-shell" data-pagefind-body>
+    <header class="kf-head">
+      <div>
+        <h1 class="kf-title"><Icon name="lucide:sprout" /> 知识面</h1>
+        <p class="kf-sub">{questions.length} 问 · {groups.length} 个领域已开垦 · 自 {dateMin} 起 —— 面是问出来的，不是排出来的</p>
       </div>
-    ))}
+      <button id="kf-play" class="kf-play" type="button" title="回放知识面的生长过程">
+        <Icon name="lucide:play" /> 生长回放
+      </button>
+    </header>
+
+    <div class="kf-body">
+      <div class="kf-stage">
+        <svg id="kf-svg" viewBox="0 0 920 620" role="img" aria-label="按领域分组的问题分布图"></svg>
+        <div id="kf-pop" class="kf-pop" hidden></div>
+      </div>
+      <aside class="kf-side">
+        <div class="kf-detail kf-card" id="kf-detail">
+          <div class="kf-card-h"><Icon name="lucide:mouse-pointer-click" /> 选一个问题</div>
+          <p class="kf-hint">点击图上的点，看这次追问的来龙去脉；悬停可速览。</p>
+        </div>
+        <div class="kf-card">
+          <div class="kf-card-h"><Icon name="lucide:repeat" /> 固化排程 <span class="kf-badge">{dueCount} 到期 / {reviews.length}</span></div>
+          {reviews.slice(0, 6).map((r: any) => (
+            <div class="kf-review">
+              <span class={`kf-due ${isDue(r) ? "on" : ""}`}>{isDue(r) ? "● 到期" : r.dueDate?.slice(5)}</span>
+              <span class="kf-rq">{r.question ?? r.topic}</span>
+            </div>
+          ))}
+          {reviews.length > 6 && <div class="kf-more">还有 {reviews.length - 6} 条，想起就问，不打卡</div>}
+          {reviews.length === 0 && <p class="kf-hint">还没有排程。</p>}
+        </div>
+        {weaknesses.length > 0 && (
+          <div class="kf-card">
+            <div class="kf-card-h"><Icon name="lucide:triangle-alert" /> 薄弱点</div>
+            {weaknesses.map((w: any) => (
+              <div class="kf-weak"><b>{w.topic}</b>（错 {w.errorCount} 次）— {w.note}</div>
+            ))}
+          </div>
+        )}
+      </aside>
+    </div>
+
+    <footer class="kf-timeline">
+      <span class="kf-date" id="kf-d0">{dateMin}</span>
+      <input id="kf-slider" type="range" min="0" max={daysTotal} value={daysTotal} step="1" aria-label="时间回放滑块" />
+      <span class="kf-date" id="kf-d1">{dateMax}</span>
+      <span class="kf-count" id="kf-count">{questions.length} 问</span>
+    </footer>
+    {untouched.length > 0 && (
+      <div class="kf-untouched">
+        <Icon name="lucide:sprout" /> 待开垦：
+        {untouched.map((u) => (
+          <span class="kf-ut" style={`--domain-c:${u.color}`}>{u.domain} · {u.count} 篇 0 问</span>
+        ))}
+      </div>
+    )}
   </div>
+
+  <script type="application/json" id="kf-data" set:html={JSON.stringify(payload)} />
 </BaseLayout>
+
+<style is:global>
+  /* 动态 SVG 子元素无 astro scope 属性，样式走 global（kf- 前缀防污染） */
+  .kf-shell { max-width: 1440px; margin: 0 auto; padding: 1.2rem 1.4rem 2rem; }
+  .kf-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+  .kf-title { font-size: 1.3rem; margin: 0; display: flex; align-items: center; gap: 0.4em; }
+  .kf-title svg { width: 1em; height: 1em; color: var(--accent); }
+  .kf-sub { margin: 0.3em 0 0; color: var(--ink-2); font-size: 0.86rem; }
+  .kf-play {
+    display: inline-flex; align-items: center; gap: 0.45em; flex: none; cursor: pointer;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, white), var(--accent));
+    color: #fff; border: 0; border-radius: 10px; padding: 0.5em 1.1em;
+    font: 600 0.88rem var(--font-heading);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--edge-light), var(--shadow-1);
+    transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
+  }
+  .kf-play:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.28), var(--edge-light), var(--shadow-2); }
+  .kf-play:active { transform: translateY(0); }
+  .kf-play svg { width: 0.95em; height: 0.95em; }
+  .kf-play.playing { opacity: 0.7; pointer-events: none; }
+
+  .kf-body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1.1rem; margin-top: 1rem; }
+  @media (max-width: 1080px) { .kf-body { grid-template-columns: 1fr; } }
+
+  .kf-stage {
+    position: relative; border: 1px solid var(--line); border-radius: 14px;
+    background: radial-gradient(90% 100% at 50% 0%, color-mix(in srgb, var(--surface) 55%, var(--bg)), var(--bg));
+    box-shadow: var(--edge-light), var(--shadow-1);
+    min-height: 480px;
+  }
+  #kf-svg { display: block; width: 100%; height: auto; }
+
+  .kf-domain {
+    fill: color-mix(in srgb, var(--dc) 10%, transparent);
+    stroke: color-mix(in srgb, var(--dc) 38%, transparent);
+    stroke-width: 1.2;
+  }
+  .kf-domain-label {
+    fill: var(--ink); font-family: var(--font-heading); font-weight: 600;
+    font-size: 13px; text-anchor: middle; pointer-events: none;
+  }
+  .kf-domain-count {
+    fill: var(--ink-2); font-family: var(--font-mono);
+    font-size: 10.5px; text-anchor: middle; pointer-events: none;
+  }
+  .kf-link { stroke: var(--dc); stroke-opacity: 0.45; stroke-width: 1; fill: none; }
+  .kf-dot { cursor: pointer; opacity: 0; transform-box: fill-box; transform-origin: center; transition: transform 160ms var(--ease-out), opacity 300ms var(--ease-out); }
+  .kf-dot.show { opacity: 1; }
+  .kf-dot.show.drop { animation: kf-drop 340ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+  @keyframes kf-drop { from { transform: scale(0.2); opacity: 0; } }
+  .kf-dot:hover { transform: scale(1.4); }
+  /* 节点微光（规范允许的低 blur）：领域归属一眼可辨 */
+  .kf-dot .halo { fill: var(--dc); opacity: 0.36; filter: blur(3.5px); }
+  .kf-dot circle { paint-order: stroke; stroke: color-mix(in srgb, var(--dc) 45%, var(--bg)); stroke-width: 1.6; }
+  .kf-dot .ring { stroke: var(--dc); stroke-width: 2.6; fill: color-mix(in srgb, var(--dc) 16%, var(--bg)); }
+  .kf-dot .pin { stroke: none; }
+
+  .kf-pop {
+    position: absolute; z-index: 20; width: 300px; pointer-events: auto;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 12px; font-size: 0.85rem; line-height: 1.6;
+    box-shadow: var(--edge-light), var(--shadow-3);
+  }
+  .kf-pop .kf-pq { color: var(--ink); margin-bottom: 4px; }
+  .kf-pop .kf-pm { color: var(--ink-2); font-size: 0.78rem; }
+  .kf-pop a { color: var(--link); }
+
+  .kf-side { display: flex; flex-direction: column; gap: 0.9rem; }
+  .kf-card {
+    background: linear-gradient(180deg, var(--surface-hi), var(--surface) 46%);
+    border: 1px solid var(--line); border-radius: 12px; padding: 0.9rem 1rem;
+    box-shadow: var(--edge-light), var(--shadow-1);
+  }
+  .kf-card-h {
+    display: flex; align-items: center; gap: 0.4em; margin-bottom: 0.55rem;
+    font: 600 0.85rem var(--font-heading); color: var(--ink);
+  }
+  .kf-card-h svg { width: 0.95em; height: 0.95em; color: var(--accent); }
+  .kf-badge { margin-left: auto; font: 500 0.72rem var(--font-mono); color: var(--ink-2); }
+  .kf-hint { margin: 0; color: var(--ink-2); font-size: 0.84rem; }
+  .kf-dq { font-size: 0.95rem; line-height: 1.7; color: var(--ink); margin-bottom: 0.4em; }
+  .kf-dm { font-size: 0.78rem; color: var(--ink-2); }
+  .kf-adj { margin-top: 0.55em; display: flex; flex-wrap: wrap; gap: 0.35em; align-items: center; }
+  .kf-adjl { font-size: 0.74rem; color: var(--ink-2); }
+  .kf-adjb {
+    cursor: pointer; font: 500 0.74rem var(--font-mono); color: var(--link);
+    background: none; border: 1px solid var(--line); border-radius: 6px; padding: 0.1em 0.5em;
+    transition: border-color var(--dur-fast) var(--ease-out);
+  }
+  .kf-adjb:hover { border-color: var(--link); }
+  .kf-review { display: flex; gap: 0.6em; align-items: baseline; padding: 0.3em 0; font-size: 0.83rem; }
+  .kf-due { flex: none; font-family: var(--font-mono); font-size: 0.74rem; color: var(--ink-2); }
+  .kf-due.on { color: var(--accent); }
+  .kf-rq { color: var(--ink); }
+  .kf-more { margin-top: 0.4em; font-size: 0.76rem; color: var(--ink-2); }
+  .kf-weak { font-size: 0.83rem; padding: 0.22em 0; color: var(--ink-2); }
+  .kf-weak b { color: var(--ink); }
+
+  .kf-timeline {
+    display: flex; align-items: center; gap: 0.8rem; margin-top: 0.9rem;
+    padding: 0.7rem 1rem; border: 1px solid var(--line); border-radius: 12px;
+    background: linear-gradient(180deg, var(--surface-hi), var(--surface) 46%);
+    box-shadow: var(--edge-light), var(--shadow-1);
+  }
+  .kf-date { font-family: var(--font-mono); font-size: 0.76rem; color: var(--ink-2); flex: none; }
+  .kf-count { margin-left: auto; font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent); flex: none; }
+  #kf-slider { flex: 1; accent-color: var(--accent); cursor: pointer; }
+
+  .kf-untouched {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+    margin-top: 0.8rem; color: var(--ink-2); font-size: 0.8rem;
+  }
+  .kf-untouched svg { width: 0.9em; height: 0.9em; }
+  .kf-ut {
+    border: 1px dashed color-mix(in srgb, var(--domain-c) 55%, var(--line));
+    color: var(--ink-2); border-radius: 999px; padding: 0.15em 0.7em; font-size: 0.76rem;
+  }
+  @media (max-width: 640px) {
+    .kf-shell { padding: 1rem 0.8rem 1.6rem; }
+    .kf-head { flex-direction: column; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .kf-dot.show.drop { animation: none; }
+    .kf-dot { transition: none; }
+  }
+</style>
+
+<script>
+  // 布局与回放：确定性力引导（无随机，每次刷新同一形状），点按日期生长。
+  const data = JSON.parse(document.getElementById("kf-data")!.textContent!);
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.getElementById("kf-svg")!;
+  const pop = document.getElementById("kf-pop")!;
+  const detail = document.getElementById("kf-detail")!;
+  const slider = document.getElementById("kf-slider") as HTMLInputElement;
+  const countEl = document.getElementById("kf-count")!;
+  const playBtn = document.getElementById("kf-play")!;
+
+  type Q = { id: string; date: string; q: string; status: string; note: string | null; noteId: string | null; domain: string; adjacent: string[] };
+  const qs: Q[] = data.questions;
+  const byId = new Map(qs.map((q: Q) => [q.id, q]));
+  const shortName = (d: string) => d.replace(/^\d+-/, "");
+  const groupColor = (d: string) => data.groups.find((g: any) => g.domain === d)?.color ?? "var(--ink-2)";
+  const noteHrefOf = (id: string) => data.base + "/notes/" + id.split("/").map(encodeURIComponent).join("/") + "/";
+
+  // ── 领域圆布局：网格初始化 + 迭代碰撞分离（确定性）──
+  const W = 920, H = 620;
+  const groups: any[] = data.groups.map((g: any, i: number) => ({
+    ...g,
+    x: 150 + (i % 4) * 215 + (i % 2) * 35,
+    y: 130 + Math.floor(i / 4) * 185,
+    r: 30 + Math.sqrt(g.count) * 17,
+  }));
+  for (let iter = 0; iter < 240; iter++) {
+    for (let i = 0; i < groups.length; i++)
+      for (let j = i + 1; j < groups.length; j++) {
+        const a = groups[i], b = groups[j];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy) || 0.01;
+        const min = a.r + b.r + 16;
+        if (dist < min) {
+          const push = ((min - dist) / dist) * 0.5;
+          a.x -= dx * push; a.y -= dy * push;
+          b.x += dx * push; b.y += dy * push;
+        }
+      }
+    for (const g of groups) {
+      g.x += (W / 2 - g.x) * 0.012;
+      g.y += (H / 2 - g.y) * 0.016;
+      g.x = Math.max(g.r + 10, Math.min(W - g.r - 10, g.x));
+      g.y = Math.max(g.r + 10, Math.min(H - g.r - 10, g.y));
+    }
+  }
+
+  // ── 领域内问题点位：单圈均匀环绕（从正上方起，一眼可数）──
+  const pos = new Map<string, { x: number; y: number }>();
+  for (const g of groups) {
+    const members = qs.filter((q) => q.domain === g.domain);
+    const rr = g.r * (members.length <= 2 ? 0.42 : 0.62);
+    members.forEach((q, i) => {
+      const angle = (i / members.length) * Math.PI * 2 - Math.PI / 2;
+      pos.set(q.id, { x: g.x + Math.cos(angle) * rr, y: g.y + Math.sin(angle) * rr });
+    });
+  }
+
+  const el = (tag: string, attrs: Record<string, string | number>, parent: Element = svg) => {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+    parent.appendChild(e);
+    return e;
+  };
+
+  // ── 渲染顺序：领域圆 → 相邻连线 → 问题点 ──
+  for (const g of groups) {
+    const grp = el("g", {});
+    grp.style.setProperty("--dc", g.color);
+    el("circle", { class: "kf-domain", cx: g.x, cy: g.y, r: g.r }, grp);
+    // label 放圆外下方：不占圆内空间，问题点永远不会被文字遮挡
+    el("text", { class: "kf-domain-label", x: g.x, y: g.y + g.r + 22 }, grp).textContent = shortName(g.domain);
+    el("text", { class: "kf-domain-count", x: g.x, y: g.y + g.r + 38 }, grp).textContent = `${g.count} 问`;
+  }
+  for (const q of qs) {
+    const p = pos.get(q.id)!;
+    for (const adj of q.adjacent) {
+      const t = byId.get(adj);
+      const tp = pos.get(adj);
+      if (!t || !tp || t.domain !== q.domain || adj < q.id) continue;
+      const line = el("line", { class: "kf-link", x1: p.x, y1: p.y, x2: tp.x, y2: tp.y });
+      line.style.setProperty("--dc", groupColor(q.domain));
+    }
+  }
+  const dotEls = new Map<string, SVGGElement>();
+  for (const q of qs) {
+    const p = pos.get(q.id)!;
+    const c = groupColor(q.domain);
+    const g = el("g", { class: "kf-dot", "data-id": q.id });
+    g.style.setProperty("--dc", c);
+    el("circle", { class: "halo", cx: p.x, cy: p.y, r: 9 }, g);
+    const R = 8;
+    if (q.status === "open") {
+      // 空心环 + 细芯：保住「未填满」语义，同时低对比领域色下也有可见锚点
+      el("circle", { class: "ring", cx: p.x, cy: p.y, r: R, stroke: c }, g);
+      el("circle", { class: "pin", cx: p.x, cy: p.y, r: 2.6, fill: c }, g);
+    } else {
+      el("circle", { class: "core", cx: p.x, cy: p.y, r: R - 2, fill: c }, g);
+    }
+    svg.appendChild(g);
+    dotEls.set(q.id, g);
+    g.addEventListener("click", () => select(q.id));
+    g.addEventListener("mouseenter", () => showPop(q.id));
+    g.addEventListener("mouseleave", hidePop);
+  }
+
+  // ── 详情面板 ──
+  function select(id: string) {
+    const q = byId.get(id)!;
+    const c = groupColor(q.domain);
+    const noteLink = q.noteId ? noteHrefOf(q.noteId) : null;
+    detail.innerHTML = `
+      <div class="kf-card-h"><span style="width:8px;height:8px;border-radius:50%;background:${c};flex:none"></span> ${q.id} · ${shortName(q.domain)} · ${q.date}</div>
+      <div class="kf-dq">${q.q}</div>
+      <div class="kf-dm">${q.status === "open" ? "还开着" : "已有答案"} · ${noteLink ? `知识点：<a href="${noteLink}">${q.note}</a>` : q.note ? `知识点：${q.note}（待写）` : "未挂知识点"}</div>
+      ${q.adjacent.length ? `<div class="kf-adj"><span class="kf-adjl">相邻追问</span>${q.adjacent.map((a) => `<button class="kf-adjb" data-adj="${a}">${a}</button>`).join("")}</div>` : ""}
+    `;
+    detail.querySelectorAll<HTMLButtonElement>(".kf-adjb").forEach((b) =>
+      b.addEventListener("click", () => select(b.dataset.adj!)),
+    );
+  }
+
+  // ── hover 预览 ──
+  let hideTimer: number | undefined;
+  function showPop(id: string) {
+    clearTimeout(hideTimer);
+    const q = byId.get(id)!;
+    const p = pos.get(id)!;
+    pop.innerHTML = `
+      <div class="kf-pq">${q.q}</div>
+      <div class="kf-pm">${q.id} · ${shortName(q.domain)} · ${q.date} · ${q.status === "open" ? "open" : "answered"}${q.noteId ? ` · <a href="${noteHrefOf(q.noteId)}">${q.note}</a>` : ""}</div>`;
+    pop.hidden = false;
+    const stage = svg.parentElement!;
+    const sr = stage.getBoundingClientRect();
+    const m = svgPoint(p.x, p.y);
+    pop.style.left = `${Math.min(Math.max(m.x + 14, 8), sr.width - 312)}px`;
+    pop.style.top = `${Math.min(Math.max(m.y - 10, 8), Math.max(sr.height - 130, 8))}px`;
+  }
+  function hidePop() { hideTimer = window.setTimeout(() => (pop.hidden = true), 120); }
+  pop.addEventListener("mouseenter", () => clearTimeout(hideTimer));
+  pop.addEventListener("mouseleave", hidePop);
+  function svgPoint(x: number, y: number) {
+    const pt = svg.createSVGPoint();
+    pt.x = x; pt.y = y;
+    const m = pt.matrixTransform(svg.getScreenCTM()!);
+    const sr = svg.parentElement!.getBoundingClientRect();
+    return { x: m.x - sr.left, y: m.y - sr.top };
+  }
+
+  // ── 时间轴过滤 + 生长回放（range 用天数偏移，避免日期字符串进 input）──
+  const sorted = [...qs].sort((a, b) => a.date.localeCompare(b.date));
+  const dayMs = 86400000;
+  const startDate = new Date(data.min + "T00:00:00Z").getTime();
+  const cutOf = (offset: number) => new Date(startDate + offset * dayMs).toISOString().slice(0, 10);
+  function apply() {
+    const cut = cutOf(Number(slider.value));
+    let n = 0;
+    for (const q of sorted) {
+      const on = q.date <= cut;
+      const g = dotEls.get(q.id)!;
+      const was = g.classList.contains("show");
+      g.classList.toggle("show", on);
+      if (on && !was && playing) {
+        g.classList.add("drop");
+        window.setTimeout(() => g.classList.remove("drop"), 400);
+      }
+      if (on) n++;
+    }
+    countEl.textContent = `${n} 问`;
+  }
+  let playing = false;
+  let playTimer: number | undefined;
+  slider.addEventListener("input", () => { stopPlay(); apply(); });
+  apply();
+  playBtn.addEventListener("click", () => {
+    playing = true;
+    playBtn.classList.add("playing");
+    const total = Number(slider.max);
+    const stepMs = Math.max(2600 / total, 30);
+    slider.value = "0";
+    apply();
+    clearInterval(playTimer);
+    playTimer = window.setInterval(() => {
+      const next = Number(slider.value) + 1;
+      if (next >= total) {
+        slider.value = String(total);
+        apply();
+        clearInterval(playTimer);
+        playing = false;
+        playBtn.classList.remove("playing");
+        return;
+      }
+      slider.value = String(next);
+      apply();
+    }, stepMs);
+  });
+</script>

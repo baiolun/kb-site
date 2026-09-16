@@ -4,8 +4,11 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 
-const VAULT_ANNOT = "E:/ai/ku/knowledge-vault/网站/批注";
-const VAULT_CONTENT = "E:/ai/ku/kb-site/src/content/vault"; // 管线生成物：用于组装讲解上下文
+// 项目已独立至 E:/ai/kb-site：路径可用环境变量覆盖，默认按相对位置解析
+const VAULT_ANNOT = process.env.VAULT_DIR
+  ? path.join(process.env.VAULT_DIR, "网站/批注")
+  : "E:/ai/ku/knowledge-vault/网站/批注";
+const VAULT_CONTENT = path.join(import.meta.dirname ?? ".", "..", "src/content/vault"); // 管线生成物：用于组装讲解上下文
 const INDEX_FILE = path.join(VAULT_ANNOT, "annotations.json");
 const PORT = 4322;
 

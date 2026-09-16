@@ -168,7 +168,7 @@ const { noteId, title } = Astro.props;
     display: flex; align-items: center; justify-content: center;
     background: var(--surface); color: var(--ink-2);
     border: 1px solid var(--line); cursor: pointer;
-    box-shadow: 0 4px 16px color-mix(in srgb, #000 18%, transparent);
+    box-shadow: var(--edge-light), var(--shadow-1);
     transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out),
       transform var(--dur-fast) var(--ease-out);
   }
@@ -181,7 +181,9 @@ const { noteId, title } = Astro.props;
 
   /* 右栏「本篇阅读」卡 */
   .reading-card {
-    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    background: linear-gradient(180deg, var(--surface-hi), var(--surface) 46%);
+    border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: var(--edge-light), var(--shadow-1);
     padding: 0.9rem 1rem; margin-bottom: 1rem;
     display: flex; flex-direction: column; gap: 0.45rem;
   }
@@ -214,7 +216,7 @@ const { noteId, title } = Astro.props;
     display: flex; align-items: center; gap: 12px;
     background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
     padding: 12px 18px;
-    box-shadow: 0 16px 48px color-mix(in srgb, #000 30%, transparent);
+    box-shadow: var(--edge-light), var(--shadow-3);
     transition: transform 280ms var(--ease-out), opacity 280ms var(--ease-out);
   }
   .read-toast.show { transform: translate(-50%, 0); opacity: 1; }

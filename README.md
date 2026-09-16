@@ -1,4 +1,4 @@
-# 种子库（kb-site）
+# 问野（kb-site）
 
 个人知识库网站：[https://baiolun.github.io/kb-site/](https://baiolun.github.io/kb-site/)
 

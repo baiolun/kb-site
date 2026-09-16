@@ -54,8 +54,8 @@ const recent = notes
 
 const quickLinks = [
   { href: withBase("/graph/"), icon: "lucide:network", label: "知识星图", hint: `${stats.notes} 节点` },
-  { href: withBase("/questions/"), icon: "lucide:circle-help", label: "好奇心地图", hint: `${openCount} open` },
-  { href: withBase("/learn/"), icon: "lucide:compass", label: "学习路径", hint: "接着上次" },
+  { href: withBase("/questions/"), icon: "lucide:circle-help", label: "知识面", hint: `${openCount} open` },
+  { href: withBase("/questions/"), icon: "lucide:sprout", label: "知识面", hint: "由点向面" },
   { href: withBase("/archive/"), icon: "lucide:book-open", label: "归档", hint: "全部集合" },
 ];
 ---
@@ -104,7 +104,7 @@ const quickLinks = [
                 </div>
               )}
               <div class="resume-actions">
-                <a class="btn-accent" href={withBase("/learn/")}>打开学习路径 →</a>
+                <a class="btn-accent" href={withBase("/questions/")}>打开知识面 →</a>
                 {last && <span class="hint">记录于 {last.date}，非实时阅读位置</span>}
               </div>
             </>
@@ -112,7 +112,7 @@ const quickLinks = [
             <>
               <div class="resume-topic">还没有学习记录</div>
               <div class="resume-actions">
-                <a class="btn-accent" href={withBase("/learn/")}>从学习路径开始 →</a>
+                <a class="btn-accent" href={withBase("/questions/")}>去提第一个问题 →</a>
                 <span class="hint">或在下方选一个主题</span>
               </div>
             </>

@@ -53,7 +53,7 @@ import { Icon } from "astro-icon/components";
   .search-panel {
     width: min(560px, 100%); max-height: 68vh; display: flex; flex-direction: column;
     background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
-    box-shadow: 0 24px 64px color-mix(in srgb, #000 35%, transparent);
+    box-shadow: var(--edge-light), var(--shadow-3);
     overflow: hidden;
     animation: panel-in 200ms var(--ease-out);
   }
