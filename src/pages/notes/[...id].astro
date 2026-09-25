@@ -13,6 +13,7 @@ import NoteTree from "../../components/NoteTree.astro";
 import backlinks from "../../data/backlinks.json";
 import previewsRaw from "../../data/previews.json";
 import domainsJson from "../../data/graph.json";
+import "katex/dist/katex.min.css";
 
 export async function getStaticPaths() {
   const notes = await getCollection("vault", (e) => e.data.collection === "notes");
@@ -105,6 +106,60 @@ const official = officialLinks(d.title, d.aliases);
   <div class="wiki-popover" id="wiki-popover" role="tooltip"></div>
 
   <script type="application/json" id="previews-data" set:html={JSON.stringify(previewsRaw).replace(/</g, "\\u003c")} />
+
+  <script>
+    // ── 多格式渲染：公式（KaTeX）+ mermaid 图（2026-09-25）──
+    // content layer 的 render() 不应用全局 rehype 配置（callout 转换已实证），故走 DOM 侧渐进转换：
+    // 检测到对应内容才 dynamic import 拉包，无公式/图的页面零开销；无 JS 时退化为原文/代码块。
+    (async () => {
+      const nb = document.querySelector(".note-body");
+      if (!nb) return;
+
+      // 公式：$...$ / $$...$$ / \(..\) / \[..\] → KaTeX
+      if (/\\\(|\\\[|\$\$|\$[^\s$]/.test(nb.textContent ?? "")) {
+        try {
+          const [{ default: renderMathInElement }] = await Promise.all([
+            import("katex/contrib/auto-render"),
+          ]);
+          renderMathInElement(nb, {
+            delimiters: [
+              { left: "$$", right: "$$", display: true },
+              { left: "\\[", right: "\\]", display: true },
+              { left: "\\(", right: "\\)", display: false },
+              { left: "$", right: "$", display: false },
+            ],
+            throwOnError: false,
+          });
+        } catch { /* 加载失败保留原文 */ }
+      }
+
+      // mermaid：```mermaid 代码块 → SVG（Shiki 把语言放在 pre[data-language]；语法错误保留原代码块）
+      const blocks = [...document.querySelectorAll(".note-body pre[data-language='mermaid']")];
+      if (blocks.length) {
+        try {
+          const { default: mermaid } = await import("mermaid");
+          const dark = document.documentElement.dataset.theme !== "study";
+          mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
+          for (let i = 0; i < blocks.length; i++) {
+            try {
+              const { svg } = await mermaid.render(`mmd-${Date.now()}-${i}`, blocks[i].textContent ?? "");
+              const fig = document.createElement("div");
+              fig.className = "mermaid-figure";
+              fig.innerHTML = svg;
+              blocks[i].closest("pre")?.replaceWith(fig);
+            } catch { /* 单块失败不影响其余 */ }
+          }
+        } catch { /* 加载失败保留代码块 */ }
+      }
+    })();
+  </script>
+
+  <style is:global>
+    /* mermaid 渲染结果与 KaTeX 块级公式的容器细节（动态节点，scoped 匹配不到，走 global） */
+    .note-body .mermaid-figure { margin: 1.2rem 0; text-align: center; overflow-x: auto; }
+    .note-body .mermaid-figure svg { max-width: 100%; height: auto; }
+    .note-body .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.2rem 0; }
+  </style>
 
   <script>
     // ── Obsidian callout：> [!TIP] 标题 的 blockquote → 结构化卡片（客户端渐进转换）──

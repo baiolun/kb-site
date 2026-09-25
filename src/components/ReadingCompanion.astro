@@ -1,6 +1,7 @@
 ---
 import { Icon } from "astro-icon/components";
-// 阅读伴侣：单篇计时 + 读完检测 + 连续天数 + 阅读进度条 + TOC spy + 沉浸模式。
+// 阅读伴侣：单篇计时 + 显式标记已读（2026-09-25 起不再按滚动进度自动判定，快速翻阅≠读完）
+//            + 连续天数 + 阅读进度条 + TOC spy + 沉浸模式。
 // 数据全部存 localStorage（本机）；动静仅 transform/opacity，reduced-motion 直接跳变。
 // noteId 由父页传给 data-note-id，脚本从这里读，组件本身不掺页面逻辑。
 interface Props { noteId: string; title: string; }
@@ -17,6 +18,9 @@ const { noteId, title } = Astro.props;
 <aside class="reading-card" id="reading-card" aria-label="本篇阅读进度">
   <div class="rc-head"><Icon name="lucide:book-open-text" /> 本篇阅读</div>
   <div class="rc-time"><span id="rc-min">0</span><span class="rc-unit">分钟</span></div>
+  <button class="rc-mark" id="rc-mark" type="button" title="读完后自己确认，不按滚动自动判定">
+    <Icon name="lucide:check" /> 标记为已读
+  </button>
   <div class="rc-done" id="rc-done" hidden><Icon name="lucide:badge-check" /> 读完了</div>
   <div class="rc-divider"></div>
   <div class="rc-row"><Icon name="lucide:flame" /><span id="rc-streak">—</span></div>
@@ -79,6 +83,7 @@ const { noteId, title } = Astro.props;
     document.getElementById("rc-today").textContent = String(todayMin());
     document.getElementById("rc-streak").textContent = streakText();
     const done = !!store.get(`kb-done-${noteId}`);
+    document.getElementById("rc-mark").hidden = done;
     const el = document.getElementById("rc-done");
     el.hidden = !done;
     if (done) el.classList.add("show");
@@ -107,25 +112,18 @@ const { noteId, title } = Astro.props;
   document.addEventListener("scroll", updateBar, { passive: true });
   updateBar();
 
-  // ---- 读完检测（进度 ≥95%，只奖励一次）----
-  let celebrated = !!store.get(`kb-done-${noteId}`);
-  function checkDone() {
-    if (celebrated || progress < 0.95) return;
-    celebrated = true;
-    const today = dayKeyOf();
-    store.set(`kb-done-${noteId}`, today);
+  // ---- 标记已读（显式点击确认；进度条只作参考，不再自动判定）----
+  document.getElementById("rc-mark").addEventListener("click", () => {
+    if (store.get(`kb-done-${noteId}`)) return;
+    store.set(`kb-done-${noteId}`, dayKeyOf());
     bumpStreak();
-    const done = document.getElementById("rc-done");
-    done.hidden = false;
-    requestAnimationFrame(() => done.classList.add("show"));
     document.getElementById("rt-sub").textContent =
       `《${title}》已读 ${thisMin} 分钟 · 今日共 ${todayMin()} 分钟`;
     const toast = document.getElementById("read-toast");
     toast.classList.add("show");
     setTimeout(() => toast.classList.remove("show"), 3600);
     paint();
-  }
-  document.addEventListener("scroll", checkDone, { passive: true });
+  });
 
   // ---- TOC spy ----
   const tocLinks = [...document.querySelectorAll(".toc-list a")];
@@ -194,11 +192,23 @@ const { noteId, title } = Astro.props;
   .rc-head svg { width: 14px; height: 14px; }
   .rc-time { font-family: var(--font-mono); font-size: 1.7rem; color: var(--ink); line-height: 1; }
   .rc-unit { font-size: 0.8rem; color: var(--ink-2); margin-left: 6px; }
+  .rc-mark {
+    display: flex; align-items: center; gap: 5px; align-self: flex-start;
+    font: inherit; font-size: 0.8rem; font-weight: 500;
+    color: var(--ink-2); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 0.28rem 0.75rem; cursor: pointer;
+    transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+  }
+  .rc-mark:hover { color: var(--accent); border-color: var(--accent); }
+  .rc-mark svg { width: 13px; height: 13px; }
   .rc-done {
     display: flex; align-items: center; gap: 5px; align-self: flex-start;
     color: var(--accent); font-size: 0.82rem; font-weight: 600;
   }
   .rc-done svg { width: 15px; height: 15px; }
+  /* display:flex 会盖过 hidden 属性的 UA 样式，必须显式声明（未标记状态不得显示旧徽章） */
+  .rc-done[hidden] { display: none; }
   .rc-done.show { animation: rc-pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1); }
   @keyframes rc-pop { from { transform: scale(0.6); opacity: 0; } }
   .rc-divider { border-top: 1px solid var(--line); margin: 0.15rem 0; }

@@ -252,7 +252,7 @@ for (const b of broken) warn("broken-link", b.from, b.link);
 const backlinks = {};
 for (const e of edges) (backlinks[e.target] ??= []).push(e.source);
 
-// ---- 问题日志 ----
+// ---- 问题日志（2026-09-25 退役：台账不再维护，解析逻辑保留以兼容归档恢复；缺失静默为空）----
 const qlogPath = path.join(VAULT, "07-学习路径/00-问题日志/问题日志.md");
 const questions = [];
 if (fs.existsSync(qlogPath)) {
@@ -299,8 +299,6 @@ if (fs.existsSync(qlogPath)) {
     const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
     q.domain = best ? best[0] : "待定位";
   }
-} else {
-  warn("missing-file", "07-学习路径/00-问题日志/问题日志.md", "");
 }
 
 // ---- progress.json 透传 ----

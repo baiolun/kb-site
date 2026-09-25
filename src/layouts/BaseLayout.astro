@@ -5,12 +5,12 @@ import { withBase, BASE } from "../lib/base";
 import SearchUI from "../components/SearchUI.astro";
 import { SITE_NAME, SITE_TAGLINE } from "../lib/site";
 import "../styles/global.css";
-interface Props { title: string; description?: string; space?: "page" | "map"; current?: "home" | "graph" | "questions" | "archive" | "notes"; }
+interface Props { title: string; description?: string; space?: "page" | "map"; current?: "home" | "graph" | "learn" | "archive" | "notes"; }
 const { title, description, space = "page", current = "" } = Astro.props;
 const nav = [
   { href: withBase("/"), key: "home", label: "首页" },
   { href: withBase("/graph/"), key: "graph", label: "图谱" },
-  { href: withBase("/questions/"), key: "questions", label: "知识面" },
+  { href: withBase("/learn/"), key: "learn", label: "学习状态" },
   { href: withBase("/archive/"), key: "archive", label: "归档" },
 ];
 const siteUrl = Astro.site ?? new URL(BASE + "/", Astro.url.origin);
